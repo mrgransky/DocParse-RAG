@@ -40,22 +40,54 @@ cache_directory = {
 console = rich.console.Console()
 DATA_DIR = "Data"
 
+# TEMPLATE__PROMPT = """\
+# You are a senior automotive financial analyst.
+
+# RULES:
+# 1. Answer ONLY using the provided context. Using outside knowledge is strictly forbidden.
+# 2. Do NOT perform arithmetic.
+# 3. CRITICAL VERIFICATION: Before answering, you MUST output a <verification> block. 
+# 	 Inside this block, ask yourself: "Is the exact requested figure explicitly stated in the context for the correct company and year?"
+# 4. If the answer to your verification is NO, your final output MUST be exactly DATA_MISSING.
+# 5. If YES, provide the concise answer and cite the source document.
+
+# Context:
+# {context}
+
+# """
+
 TEMPLATE__PROMPT = """\
-You are a senior automotive financial analyst.
+You are a financial analyst answering questions using excerpts from annual reports.
 
-RULES:
-1. Answer ONLY using the provided context. Never use outside knowledge.
-2. Do NOT perform arithmetic.
-3. CRITICAL VERIFICATION: Before answering, you MUST output a <verification> block. 
-	 Inside this block, ask yourself: "Is the exact requested figure explicitly stated in the context for the correct company and year?"
-4. If the answer to your verification is NO, your final output MUST be exactly DATA_MISSING.
-5. If YES, provide the concise answer and cite the source document.
+EVIDENCE AND ACCURACY RULES
+1. Answer using only the supplied context. Do not introduce outside facts.
+2. Answer the user's actual question directly and concisely.
+3. Do not reveal internal reasoning, describe your thought process, or output a
+   verification block.
+4. Preserve the company, reporting period, currency, units, accounting metric,
+   and sign of every financial figure.
+5. Distinguish among revenue, operating income, net income, and adjusted EBIT.
+   Do not treat these metrics as interchangeable.
+6. Distinguish consolidated figures from figures attributable to a parent company
+   or its shareholders when the context makes that distinction.
+7. Cite supporting evidence using the source filename and page number provided
+   in the context. For example: [Ford_Annual_Report_2023.pdf, p. 54].
+8. For comparisons, address each company and reporting period separately.
+   If only part of a comparison is supported, provide the supported part and
+   clearly identify what is unavailable.
+9. For explanatory questions, synthesize the relevant statements in the context.
+   Do not claim that one event caused another unless the context supports that
+   relationship.
+10. Do not perform arithmetic unless the user explicitly requests a calculation.
+    If calculations are requested, show the formula and identify the input figures.
+11. If the context provides no evidence for ANY part of the question, respond
+    with exactly: DATA_MISSING
 
-Context:
+CONTEXT:
 {context}
-
-Question: {question}
 """
+
+MAX_HISTORY_TURNS = 5
 
 def normalize_pdf_text(text: str) -> str:
 	if not text:
@@ -389,12 +421,12 @@ def _encode_(
 	return np.asarray(embeddings, dtype=np.float32)
 
 def main():
-	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG) — Transformers edition")
+	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
 	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen2.5-0.5B-Instruct")
 	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
-	parser.add_argument("--top_k", type=int, default=8)
+	parser.add_argument("--top_k", type=int, default=3)
 	parser.add_argument("--max_seq_len", type=int, default=8192, help="LLM context window (tokens)")
 	parser.add_argument("--max_new_tokens", type=int, default=512)
 	parser.add_argument("--load_in_4bit", action="store_true")
@@ -535,16 +567,13 @@ def main():
 				k=args.top_k
 			)
 
-		# token budget for context
-		# Overhead = system prompt + history + question + generation tokens + safety margin
-		history_str = "".join(f"User: {u}\nAssistant: {a}\n" for u, a in chat_history[-5:])
-		# Build a probe prompt with empty context to count fixed overhead
-		probe = TEMPLATE__PROMPT.format(context="", chat_history=history_str, question=query)
-		# apply_chat_template adds role tokens; count them too
-		probe_msgs = [
-				{"role": "system", "content": probe},
-				{"role": "user", "content": query},
-		]
+		# overhead probe (must mirror the REAL message structure)
+		probe_msgs = [{"role": "system", "content": TEMPLATE__PROMPT.format(context="")}]
+		for u, a in chat_history[-MAX_HISTORY_TURNS:]:
+			probe_msgs.append({"role": "user", "content": u})
+			probe_msgs.append({"role": "assistant", "content": a})
+		probe_msgs.append({"role": "user", "content": query})
+
 		probe_text = tokenizer.apply_chat_template(
 			probe_msgs, 
 			tokenize=False, 
@@ -552,20 +581,23 @@ def main():
 		)
 		overhead = len(tokenizer.encode(probe_text, add_special_tokens=False))
 		max_context_tokens = max(0, args.max_seq_len - overhead - args.max_new_tokens - 64)
+
 		context, kept = build_context_within_budget(retrieved, tokenizer, max_context_tokens)
-		prompt_msgs = [
-			{
-				"role": "system", 
-				"content": TEMPLATE__PROMPT.format(context=context, chat_history=history_str, question=query)
-			},
-			{"role": "user", "content": query},
-		]
+
+		# Real prompt: system (instructions + current context) + history + current query ---
+		system_prompt = TEMPLATE__PROMPT.format(context=context)
+		prompt_msgs = [{"role": "system", "content": system_prompt}]
+		for u, a in chat_history[-MAX_HISTORY_TURNS:]:
+			prompt_msgs.append({"role": "user", "content": u})
+			prompt_msgs.append({"role": "assistant", "content": a})
+		prompt_msgs.append({"role": "user", "content": query})
 
 		with console.status("[bold cyan]Generating...[/bold cyan]"):
 			prompt_text = tokenizer.apply_chat_template(
 				prompt_msgs, 
 				tokenize=False, 
-				add_generation_prompt=True
+				add_generation_prompt=True,
+				enable_thinking=False,
 			)
 
 			inputs = tokenizer(
