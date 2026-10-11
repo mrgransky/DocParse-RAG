@@ -62,8 +62,7 @@ My solution for Financial RAG
 
 **Query #4 (Currency Trap)**, **Query #7 (GAAP vs Non-GAAP)**, and **Query #9 (The News Distractor)**. 
 
-Failure with 0.5B/14B models: 
-struggles with the multi-document math or table extraction:
+Failure with 0.5B/14B models: as they struggle with the multi-document math or table extraction:
 > *"Open-weights model struggles to align the columns of this mangled PDF table. In a production environment at AECOM, I would solve this by routing table-heavy pages through a Vision-Language Model like LlamaParse, or by implementing an Agentic Router that passes tabular data to a Python/Pandas tool for deterministic math."*
 
 This turns a potential model failure into a demonstration of **senior systems architecture knowledge**.
