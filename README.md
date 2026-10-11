@@ -58,16 +58,12 @@ My solution for Financial RAG
 
 ---
 
-### 💡 How to use this in your Interview
+> *"Any basic LLM can answer 'What is Tesla's revenue'. How my pipeline handles **edge cases, financial nuance, and distractor resistance**, which are the actual challenges in enterprise RAG."*
 
-When you sit down with the AECOM engineering team, **do not just run the "happy path" queries** (e.g., "What is Tesla's revenue?"). 
+**Query #4 (Currency Trap)**, **Query #7 (GAAP vs Non-GAAP)**, and **Query #9 (The News Distractor)**. 
 
-Instead, take control of the demo and say:
-> *"Any basic LLM can answer 'What is Tesla's revenue'. I want to show you how my pipeline handles **edge cases, financial nuance, and distractor resistance**, which are the actual challenges in enterprise RAG."*
+Failure with 0.5B/14B models: 
+struggles with the multi-document math or table extraction:
+> *"Open-weights model struggles to align the columns of this mangled PDF table. In a production environment at AECOM, I would solve this by routing table-heavy pages through a Vision-Language Model like LlamaParse, or by implementing an Agentic Router that passes tabular data to a Python/Pandas tool for deterministic math."*
 
-Then, deliberately run **Query #4 (Currency Trap)**, **Query #7 (GAAP vs Non-GAAP)**, and **Query #9 (The News Distractor)**. 
-
-If the 0.5B/14B model struggles with the multi-document math or table extraction, **use it as a talking point**:
-> *"As you can see, the open-weights model struggles to align the columns of this mangled PDF table. In a production environment at AECOM, I would solve this by routing table-heavy pages through a Vision-Language Model like LlamaParse, or by implementing an Agentic Router that passes tabular data to a Python/Pandas tool for deterministic math."*
-
-This turns a potential model failure into a demonstration of your **senior systems architecture knowledge**.
+This turns a potential model failure into a demonstration of **senior systems architecture knowledge**.
