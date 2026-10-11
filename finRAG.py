@@ -37,10 +37,9 @@ cache_directory = {
 	"ubuntu": "/media/volume/models",
 }
 
-hf_tk: str = os.getenv("HUGGINGFACE_TOKEN")
-
 console = rich.console.Console()
 DATA_DIR = "Data"
+
 TEMPLATE__PROMPT = """\
 You are a senior automotive financial analyst.
 
@@ -523,7 +522,9 @@ def main():
 				{"role": "user", "content": query},
 		]
 		probe_text = tokenizer.apply_chat_template(
-				probe_msgs, tokenize=False, add_generation_prompt=True
+			probe_msgs, 
+			tokenize=False, 
+			add_generation_prompt=True
 		)
 		overhead = len(tokenizer.encode(probe_text, add_special_tokens=False))
 		max_context_tokens = max(0, args.max_seq_len - overhead - args.max_new_tokens - 64)
