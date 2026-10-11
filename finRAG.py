@@ -44,22 +44,6 @@ Context:
 Question: {question}
 """
 
-# TEMPLATE__PROMPT = """\
-# You are a senior automotive financial analyst at an infrastructure consulting firm.
-# RULES:
-# 1. For financial, strategic, or company-specific questions, answer ONLY using the provided context.
-# 2. If the exact financial figure or specific fact requested is NOT in the context, output exactly DATA_MISSING — do not guess or hallucinate.
-# 3. Do NOT perform arithmetic. If asked for growth rates or totals, quote the raw figures and let the user compute the difference.
-# 4. Always cite the company name and report year when referencing a figure.
-# 5. If the user asks a general greeting (e.g., "hi", "who are you", "what should I ask"), respond politely as an AI financial assistant without using the context.
-# 6. Keep answers concise and structured (bullet points preferred).
-# Context:
-# {context}
-# Chat History:
-# {chat_history}
-# Question: {question}
-# Answer:"""
-
 def get_model_kwargs(verbose: bool=False):
 	dtype = torch.float32
 	attention = "eager"
@@ -220,21 +204,33 @@ def split_text(text: str, chunk_size: int = 800, chunk_overlap: int = 120) -> Li
 		final.append(combined[-chunk_size - chunk_overlap:] if len(combined) > chunk_size + chunk_overlap else combined)
 	return final
 
-def load_and_process_documents(chunk_size: int, chunk_overlap: int) -> List[Dict[str, Any]]:
-	console.print("[bold cyan]Loading documents from Data directory...[/bold cyan]")
-	raw_docs = load_pdfs(DATA_DIR)
+def load_and_process_documents(data_dir: str, chunk_size: int, chunk_overlap: int) -> List[Dict[str, Any]]:
+	console.print(f"[bold cyan][LOADING] {data_dir} (chunk_size={chunk_size}, chunk_overlap={chunk_overlap})...[/bold cyan]")
+	raw_docs = load_pdfs(data_dir)
 	console.print(f"[green]Loaded {len(raw_docs)} raw document pages.[/green]")
+	
 	chunks = []
 	for doc in raw_docs:
-		for ch in split_text(doc["text"], chunk_size=chunk_size, chunk_overlap=chunk_overlap):
-			chunks.append({"text": ch, "source": doc["source"], "page": doc["page"]})
-	console.print(f"[green]Split into {len(chunks)} chunks.[/green]")
+
+		splited_text = split_text(
+			text=doc["text"], 
+			chunk_size=chunk_size, 
+			chunk_overlap=chunk_overlap
+		)
+		
+		for ch in splited_text:
+			chunk = {"text": ch, "source": doc["source"], "page": doc["page"]}
+			chunks.append(chunk)
+	
+	console.print(f"[green][SPLITED] {len(chunks)} chunks.[/green]")
+	
 	return chunks
 
 def compute_cache_key(data_dir: str, embed_model: str, chunk_size: int, chunk_overlap: int) -> str:
 	h = hashlib.sha256()
 	h.update(embed_model.encode())
 	h.update(f"{chunk_size}|{chunk_overlap}".encode())
+
 	for root, _, files in os.walk(data_dir):
 		for f in sorted(files):
 			if f.lower().endswith(".pdf"):
@@ -243,6 +239,7 @@ def compute_cache_key(data_dir: str, embed_model: str, chunk_size: int, chunk_ov
 				h.update(p.encode())
 				h.update(str(st.st_size).encode())
 				h.update(str(int(st.st_mtime)).encode())
+
 	return h.hexdigest()[:16]
 
 def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]]):
@@ -296,8 +293,8 @@ def build_context_within_budget(
 
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG) — Transformers edition")
-	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen2.5-0.5B-Instruct")
-	parser.add_argument("--embedding_model", "-emb", type=str, default="BAAI/bge-base-en-v1.5",help="context embedder")
+	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen2.5-1.5B-Instruct")
+	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
 	parser.add_argument("--top_k", type=int, default=8)
@@ -308,6 +305,7 @@ def main():
 	args = parser.parse_args()
 
 	attention, dtype = get_model_kwargs()
+
 	emb_model = _load(
 		model_id=args.embedding_model,
 		attention=attention,
@@ -316,34 +314,44 @@ def main():
 		token=os.getenv("HUGGINGFACE_TOKEN"),
 	)
 	emb_max_tokens = getattr(emb_model, "max_seq_length", None)
-	print(f"emb_max_tokens: {emb_max_tokens}")
 
-	# ~4 chars/token heuristic; be conservative
+	# ~4 chars/token heuristic (conservative)
 	if emb_max_tokens is not None:
 		max_chars = emb_max_tokens * 4
 		if args.chunk_size > max_chars:
 			console.print(
-				f"[yellow]⚠ chunk_size={args.chunk_size} exceeds ~{max_chars} chars "
+				f"[yellow]chunk_size={args.chunk_size} exceeds ~{max_chars} chars "
 				f"({emb_max_tokens} tokens) for {args.embedding_model}. "
 				f"Tail of every chunk will be invisible to the retriever.[/yellow]"
 			)
 
-	cache_key = compute_cache_key(DATA_DIR, args.embedding_model, args.chunk_size, args.chunk_overlap)
+	cache_key = compute_cache_key(
+		data_dir=DATA_DIR,
+		embed_model=args.embedding_model,
+		chunk_size=args.chunk_size, 
+		chunk_overlap=args.chunk_overlap,
+	)
+	
 	index_dir = f"index_{args.embedding_model.replace('/', '_')}_{cache_key}"
 	os.makedirs(index_dir, exist_ok=True)
 	chunks_path = os.path.join(index_dir, "chunks.pkl")
 	emb_path = os.path.join(index_dir, "embeddings.npy")
 	meta_path = os.path.join(index_dir, "meta.json")
 	need_build = args.rebuild_index or not (os.path.exists(chunks_path) and os.path.exists(emb_path))
+
 	if not need_build:
 		with open(meta_path) as f:
 			meta = json.load(f)
 		if meta.get("cache_key") != cache_key:
-			console.print("[yellow]Cache key mismatch — rebuilding index.[/yellow]")
+			console.print("[yellow]Cache key mismatch, rebuilding index.[/yellow]")
 			need_build = True
 	
 	if need_build:
-		chunks = load_and_process_documents(args.chunk_size, args.chunk_overlap)
+		chunks = load_and_process_documents(
+			data_dir=DATA_DIR,
+			chunk_size=args.chunk_size,
+			chunk_overlap=args.chunk_overlap,
+		)
 		_, embeddings = build_index(model=emb_model, chunks=chunks)
 		
 		with open(chunks_path, "wb") as f:
