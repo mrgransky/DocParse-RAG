@@ -7,7 +7,7 @@ My solution for Financial RAG
 ### 1. The "Missing Data" & Hallucination Traps
 *These test your strict `DATA_MISSING` system prompt and the model's willingness to admit ignorance.*
 
-| # | Query Prompt | Ground Truth (From your Data) | Red Flag (Pipeline Failure) |
+| # | Query Prompt | Ground Truth  | Red Flag (Pipeline Failure) |
 |---|---|---|---|
 | **1** | "What was BMW's total revenue in 2023?" | **DATA_MISSING**. Your dataset only contains the **BMW 2021** report. | The model hallucinates a number, or incorrectly pulls Tesla/Ford 2023 data. |
 | **2** | "How many vehicles did Rivian deliver in 2022?" | **DATA_MISSING**. Rivian is mentioned in Ford's report as an investment, but no delivery numbers are provided. | The model uses its pre-trained internet knowledge to answer (violating the "use ONLY provided context" rule). |
@@ -16,7 +16,7 @@ My solution for Financial RAG
 ### 2. The Cross-Company & Currency Traps
 *These test multi-document retrieval and financial literacy (handling different currencies and units).*
 
-| # | Query Prompt | Ground Truth (From your Data) | Red Flag (Pipeline Failure) |
+| # | Query Prompt | Ground Truth  | Red Flag (Pipeline Failure) |
 |---|---|---|---|
 | **4** | "Compare the 2021 revenue of BMW and Tesla." | **BMW:** €111,239 million (EUR). **Tesla:** $53,823 million (USD). | The model ignores currencies and falsely claims BMW's revenue is more than double Tesla's without noting the EUR/USD difference. |
 | **5** | "Which company had a higher net income in 2022: Tesla or Ford?" | **Tesla:** ~$12.56 billion. **Ford:** Net **loss** of $1.98 billion. | The model gets confused by Ford's *Adjusted EBIT* ($10.4B) and incorrectly states Ford was profitable in 2022. |
@@ -25,7 +25,7 @@ My solution for Financial RAG
 ### 3. The GAAP vs. Non-GAAP Nuance Traps
 *Financial reports are full of "Special Items". A good RAG bot must explain the "Why", not just the "What".*
 
-| # | Query Prompt | Ground Truth (From your Data) | Red Flag (Pipeline Failure) |
+| # | Query Prompt | Ground Truth  | Red Flag (Pipeline Failure) |
 |---|---|---|---|
 | **7** | "Why did Ford report a net loss in 2022 despite strong automotive sales?" | Driven by **$12.2B in pre-tax special items**, specifically a $7.4B mark-to-market loss on Rivian and a $2.7B impairment on Argo AI. | The model just says "Ford lost money" without citing the non-cash special items that skewed the GAAP net income. |
 | **8** | "What caused the massive drop in Tesla's effective tax rate in 2023?" | A one-time, non-cash tax benefit of **$5.93 billion** due to the release of valuation allowances on deferred tax assets. | The model misses the $5.93B figure buried in the income tax notes. |
@@ -33,7 +33,7 @@ My solution for Financial RAG
 ### 4. The Distractor / "News" Traps
 *These test if your embedding model (`bge-m3`) and retriever can ignore the `news.pdf` file when asked about specific companies.*
 
-| # | Query Prompt | Ground Truth (From your Data) | Red Flag (Pipeline Failure) |
+| # | Query Prompt | Ground Truth  | Red Flag (Pipeline Failure) |
 |---|---|---|---|
 | **9** | "How did the central bank's 0.5% interest rate hike affect Ford's F-150 Lightning sales?" | **Refusal / DATA_MISSING**. `news.pdf` mentions a 0.5% hike. `Ford` mentions F-150 Lightning. But there is **no causal link** in the text. | The model synthesizes a fake narrative combining the generic news article with Ford's EV segment. |
 | **10** | "Did the new climate bill passed by Congress impact BMW's NEUE KLASSE platform?" | **Refusal / DATA_MISSING**. `news.pdf` mentions a climate bill. BMW mentions NEUE KLASSE. They are unrelated in the provided text. | The model hallucinates that the climate bill forced BMW to change its EV architecture. |
@@ -41,7 +41,7 @@ My solution for Financial RAG
 ### 5. Table & Nested Fact Extraction
 *PDF parsers (`pypdf`) often mangle tables. These test if your chunking strategy preserved the row/column relationships.*
 
-| # | Query Prompt | Ground Truth (From your Data) | Red Flag (Pipeline Failure) |
+| # | Query Prompt | Ground Truth  | Red Flag (Pipeline Failure) |
 |---|---|---|---|
 | **11** | "What were Tesla's exact revenues from the 'Energy generation and storage' segment in 2021, 2022, and 2023?" | 2021: $2,789M | 2022: $3,909M | 2023: $6,035M. | The model mixes up the columns and attributes Automotive Sales numbers to the Energy segment. |
 | **12** | "What is the target EBIT margin for BMW's Automotive segment?" | **8% to 10%** (Found in the BMW Integrated Strategy / Target Achievement section). | The model pulls the *actual* 2021 margin (10.3%) instead of the *strategic target* (8-10%). |
