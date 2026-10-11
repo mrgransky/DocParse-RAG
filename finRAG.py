@@ -254,9 +254,15 @@ def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]]):
 
 	return model, embeddings
 
-def retrieve(query: str, chunks, embeddings, model, k: int = 8):
-	q = model.encode([query], convert_to_numpy=True, normalize_embeddings=True)[0].astype(np.float32)
+def retrieve(query: str, chunks, embeddings, model, k: int):
+	q = model.encode(
+		[query], 
+		convert_to_numpy=True, 
+		normalize_embeddings=True
+	)[0].astype(np.float32)
+	
 	scores = embeddings @ q  # cosine sim (both normalized)
+	
 	k = min(k, len(scores))
 	
 	# argpartition is O(n); then sort only the k we keep
@@ -293,11 +299,11 @@ def build_context_within_budget(
 
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG) — Transformers edition")
-	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen2.5-1.5B-Instruct")
+	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen2.5-0.5B-Instruct")
 	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
-	parser.add_argument("--top_k", type=int, default=8)
+	parser.add_argument("--top_k", type=int, default=15)
 	parser.add_argument("--max_seq_len", type=int, default=8192, help="LLM context window (tokens)")
 	parser.add_argument("--max_new_tokens", type=int, default=512)
 	parser.add_argument("--load_in_4bit", action="store_true")
@@ -409,8 +415,9 @@ def main():
 	chat_history: List[Tuple[str, str]] = []
 	console.print(
 		rich.panel.Panel.fit(
-			f"[bold green]finRAG: Financial Reports Assistant[/bold green]\n"
-			f"LLM: {args.llm_model} | Embeddings: {args.embedding_model}\n"
+			f"finRAG: Financial Reports Assistant\n"
+			f"LLM: {args.llm_model}\n"
+			f"Embeddings: {args.embedding_model}\n"
 			f"Chunks: {len(chunks)} | Top-k: {args.top_k}\n"
 			f"Type 'exit' to quit."
 		)
@@ -488,17 +495,17 @@ def main():
 			f"(budget: {max_context_tokens} tok)[/bold cyan]"
 		)
 		
-		for i, doc in enumerate(kept, start=1):
-			source = doc["source"]
-			page = doc["page"]
-			page_label = str(page + 1) if isinstance(page, int) else "unknown"
-			console.print(
-				rich.panel.Panel(
-					doc["text"][:1600],
-					title=f"[S{i}] {os.path.basename(source)} | PDF page {page_label}",
-					subtitle=source,
-				)
-			)
+		# for i, doc in enumerate(kept, start=1):
+		# 	source = doc["source"]
+		# 	page = doc["page"]
+		# 	page_label = str(page + 1) if isinstance(page, int) else "unknown"
+		# 	console.print(
+		# 		rich.panel.Panel(
+		# 			doc["text"][:1000],
+		# 			title=f"[S{i}] {os.path.basename(source)} | PDF page {page_label}",
+		# 			subtitle=source,
+		# 		)
+		# 	)
 		
 		if "DATA_MISSING" in answer:
 			console.print(
