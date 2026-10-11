@@ -15,8 +15,6 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import transformers as tfs
 
-HOME, USER = os.getenv('HOME'), os.getenv('USER')
-
 try:
 	from sentence_transformers.sentence_transformer.modules import Normalize
 except ImportError:
@@ -32,7 +30,6 @@ if not getattr(Normalize, "_rogue_kwargs_patched", False):
 		return _orig_norm_init(self, *args, **kwargs)
 	Normalize.__init__ = _patched_norm_init
 	Normalize._rogue_kwargs_patched = True
-
 
 cache_directory = {
 	"farid": "/home/farid/datasets/models",
@@ -387,7 +384,7 @@ def main():
 		model_id=args.embedding_model,
 		attention=attention,
 		dtype=dtype,
-		cache_folder=cache_directory[os.getenv("USER")],
+		cache_folder=cache_directory.get(os.getenv("USER"), os.getcwd()),
 		token=os.getenv("HUGGINGFACE_TOKEN"),
 	)
 	emb_max_tokens = getattr(emb_model, "max_seq_length", None)
@@ -409,8 +406,13 @@ def main():
 		chunk_overlap=args.chunk_overlap,
 	)
 	
-	index_dir = f"index_{args.embedding_model.replace('/', '_')}_{cache_key}"
+	index_dir = os.path.join(
+		cache_directory.get(USER, os.getcwd()), 
+		f"index_{args.embedding_model.replace('/', '_')}_{cache_key}"
+	)
+	
 	os.makedirs(index_dir, exist_ok=True)
+
 	chunks_path = os.path.join(index_dir, "chunks.pkl")
 	emb_path = os.path.join(index_dir, "embeddings.npy")
 	meta_path = os.path.join(index_dir, "meta.json")
@@ -457,7 +459,7 @@ def main():
 		"trust_remote_code": True,
 		"device_map": "auto",
 		"token": os.getenv("HUGGINGFACE_TOKEN"),
-		"cache_dir": cache_directory[USER],
+		"cache_dir": cache_directory.get(os.getenv("USER"), os.getcwd()),
 	}
 
 	console.print(f"[bold cyan]Loading LLM {args.llm_model}...[/bold cyan]")
