@@ -17,6 +17,23 @@ import transformers as tfs
 
 HOME, USER = os.getenv('HOME'), os.getenv('USER')
 
+try:
+	from sentence_transformers.sentence_transformer.modules import Normalize
+except ImportError:
+	try:
+		from sentence_transformers.base.modules import Normalize
+	except ImportError:
+		from sentence_transformers.models import Normalize
+
+if not getattr(Normalize, "_rogue_kwargs_patched", False):
+	_orig_norm_init = Normalize.__init__
+	def _patched_norm_init(self, *args, **kwargs):
+		kwargs.pop("normalize_embeddings", None)
+		return _orig_norm_init(self, *args, **kwargs)
+	Normalize.__init__ = _patched_norm_init
+	Normalize._rogue_kwargs_patched = True
+
+
 cache_directory = {
 	"farid": "/home/farid/datasets/models",
 	"alijanif": "/scratch/project_2004072/models",
@@ -26,7 +43,7 @@ cache_directory = {
 hf_tk: str = os.getenv("HUGGINGFACE_TOKEN")
 
 console = rich.console.Console()
-DATA_DIR = "./Data"
+DATA_DIR = "Data"
 TEMPLATE__PROMPT = """\
 You are a senior automotive financial analyst.
 
@@ -153,46 +170,54 @@ def load_pdfs(data_dir: str) -> List[Dict[str, Any]]:
 								{
 									"text": text,
 									"source": path,
-									"page": page_num,  # 0-based
+									"page": page_num,
 								}
 							)
 				except Exception as e:
 					console.print(f"[red]Error reading {path}: {e}[/red]")
 	
+	print(f"Found number of docs: {len(docs)} from DIR: {data_dir}")
+
 	return docs
 
-def split_text(text: str, chunk_size: int = 800, chunk_overlap: int = 120) -> List[str]:
-	"""Recursive splitter. Chunks are bounded by chunk_size + chunk_overlap."""
+def split_text(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
+	#Recursive splitter
+	# Chunks are bounded by chunk_size + chunk_overlap
 	separators = ["\n\n", "\n", ". ", " ", ""]
 	def _split(t: str, seps: List[str]) -> List[str]:
 		if len(t) <= chunk_size:
-				return [t]
+			return [t]
 		sep = seps[0] if seps else ""
 		if sep == "":
 				step = max(1, chunk_size - chunk_overlap)
 				return [t[i:i + chunk_size] for i in range(0, len(t), step)]
 		parts = t.split(sep)
 		chunks, current = [], ""
+		
 		for part in parts:
-				candidate = (current + sep + part) if current else part
-				if len(candidate) <= chunk_size:
-						current = candidate
+			candidate = (current + sep + part) if current else part
+			if len(candidate) <= chunk_size:
+				current = candidate
+			else:
+				if current:
+					chunks.append(current)
+				if len(part) > chunk_size:
+					chunks.extend(_split(part, seps[1:]))
+					current = ""
 				else:
-						if current:
-								chunks.append(current)
-						if len(part) > chunk_size:
-								chunks.extend(_split(part, seps[1:]))
-								current = ""
-						else:
-								current = part
+					current = part
+		
 		if current:
-				chunks.append(current)
+			chunks.append(current)
+		
 		return chunks
 
 	base = _split(text, separators)
+	
 	# Prepend overlap but hard-cap so chunks stay bounded.
 	if chunk_overlap <= 0:
-			return base
+		return base
+	
 	final = []
 	for i, ch in enumerate(base):
 		if i == 0:
@@ -202,16 +227,15 @@ def split_text(text: str, chunk_size: int = 800, chunk_overlap: int = 120) -> Li
 		combined = prev_tail + ch
 		# keep the meaningful tail of the chunk if we overshoot
 		final.append(combined[-chunk_size - chunk_overlap:] if len(combined) > chunk_size + chunk_overlap else combined)
+
 	return final
 
 def load_and_process_documents(data_dir: str, chunk_size: int, chunk_overlap: int) -> List[Dict[str, Any]]:
-	console.print(f"[bold cyan][LOADING] {data_dir} (chunk_size={chunk_size}, chunk_overlap={chunk_overlap})...[/bold cyan]")
+	print(f"[LOADING] {data_dir} (chunk_size={chunk_size}, chunk_overlap={chunk_overlap})")
 	raw_docs = load_pdfs(data_dir)
-	console.print(f"[green]Loaded {len(raw_docs)} raw document pages.[/green]")
 	
 	chunks = []
 	for doc in raw_docs:
-
 		splited_text = split_text(
 			text=doc["text"], 
 			chunk_size=chunk_size, 
@@ -222,7 +246,7 @@ def load_and_process_documents(data_dir: str, chunk_size: int, chunk_overlap: in
 			chunk = {"text": ch, "source": doc["source"], "page": doc["page"]}
 			chunks.append(chunk)
 	
-	console.print(f"[green][SPLITED] {len(chunks)} chunks.[/green]")
+	print(f"[SPLITED] {len(chunks)} chunks.")
 	
 	return chunks
 
@@ -244,31 +268,47 @@ def compute_cache_key(data_dir: str, embed_model: str, chunk_size: int, chunk_ov
 
 def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]]):
 	texts = [c["text"] for c in chunks]
-	embeddings = model.encode(
-		texts,
-		show_progress_bar=True,
-		convert_to_numpy=True,
-		normalize_embeddings=True,
-		batch_size=32,
-	).astype(np.float32)
+	# embeddings = model.encode(
+	# 	texts,
+	# 	show_progress_bar=True,
+	# 	convert_to_numpy=True,
+	# 	normalize_embeddings=True,
+	# 	batch_size=32,
+	# ).astype(np.float32)
 
-	return model, embeddings
+	embeddings = _encode_(model=model, texts=texts)
+	return embeddings
 
-def retrieve(query: str, chunks, embeddings, model, k: int):
-	q = model.encode(
-		[query], 
-		convert_to_numpy=True, 
-		normalize_embeddings=True
-	)[0].astype(np.float32)
-	
-	scores = embeddings @ q  # cosine sim (both normalized)
+def retrieve(
+	model: SentenceTransformer,
+	embeddings: np.ndarray,
+	query: str,
+	chunks: List[Dict[str, Any]],
+	k: int,
+):
+	# q = model.encode(
+	# 	[query], 
+	# 	convert_to_numpy=True, 
+	# 	normalize_embeddings=True
+	# )[0].astype(np.float32)
+	q = _encode_(model=model, texts=[query], show_progress_bar=False)
+
+	# scores = embeddings @ q  # cosine sim (both normalized)
+	scores = (embeddings @ q.T).squeeze(axis=1) # (3092, 1024) @ (1024, 1) -> (3092,)
 	
 	k = min(k, len(scores))
+	print(type(embeddings), embeddings.shape)
+	print(type(q), q.shape)
+	print(type(scores), scores.shape)
+	print(k)
 	
-	# argpartition is O(n); then sort only the k we keep
+	# sort only the k we keep
 	top = np.argpartition(-scores, k - 1)[:k]
 	top = top[np.argsort(-scores[top])]
-	return [(chunks[i], float(scores[i])) for i in top]
+
+	results = [(chunks[i], float(scores[i])) for i in top]
+
+	return results
 
 def build_context_within_budget(
 	retrieved: List[Tuple[Dict[str, Any], float]],
@@ -297,13 +337,44 @@ def build_context_within_budget(
 		used += block_tokens
 	return "".join(parts), kept
 
+def _encode_(
+	model,
+	texts: List[str],
+	batch_size: int = 32,
+	prompt: Optional[str] = None,
+	show_progress_bar: bool = True,
+	normalize: bool = True,
+) -> np.ndarray:
+	def _has_internal_normalize(m) -> bool:
+		if hasattr(m, "modules"):
+			return any(isinstance(mod, Normalize) for mod in m.modules())
+		return False
+
+	kw = {
+		"batch_size": batch_size,
+		"show_progress_bar": show_progress_bar,
+		"convert_to_numpy": True,
+		"precision": "float32",
+	}
+	
+	if prompt is not None:
+		kw["prompt"] = prompt
+	
+	# Only request external normalization if the model pipeline doesn't already do it
+	if normalize and not _has_internal_normalize(model):
+		kw["normalize_embeddings"] = True
+
+	embeddings = model.encode(list(texts), **kw)
+	
+	return np.asarray(embeddings, dtype=np.float32)
+
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG) — Transformers edition")
 	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen2.5-0.5B-Instruct")
 	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
-	parser.add_argument("--top_k", type=int, default=15)
+	parser.add_argument("--top_k", type=int, default=25)
 	parser.add_argument("--max_seq_len", type=int, default=8192, help="LLM context window (tokens)")
 	parser.add_argument("--max_new_tokens", type=int, default=512)
 	parser.add_argument("--load_in_4bit", action="store_true")
@@ -358,7 +429,7 @@ def main():
 			chunk_size=args.chunk_size,
 			chunk_overlap=args.chunk_overlap,
 		)
-		_, embeddings = build_index(model=emb_model, chunks=chunks)
+		embeddings = build_index(model=emb_model, chunks=chunks)
 		
 		with open(chunks_path, "wb") as f:
 			pickle.dump(chunks, f)
@@ -375,9 +446,11 @@ def main():
 				}
 			json.dump(cache_data, f, indent=2)
 	else:
-		console.print("[yellow]Loading cached index...[/yellow]")
+		print(f"[LOADING] cached index LLM: {args.embedding_model}")
+		
 		with open(chunks_path, "rb") as f:
 			chunks = pickle.load(f)
+		
 		embeddings = np.load(emb_path)
 
 	model_kwargs = {
@@ -415,10 +488,11 @@ def main():
 	chat_history: List[Tuple[str, str]] = []
 	console.print(
 		rich.panel.Panel.fit(
-			f"finRAG: Financial Reports Assistant\n"
-			f"LLM: {args.llm_model}\n"
-			f"Embeddings: {args.embedding_model}\n"
-			f"Chunks: {len(chunks)} | Top-k: {args.top_k}\n"
+			f"finRAG: Financial Reports AI Assistant\n"
+			f"LLM:       {args.llm_model}\n"
+			f"Embedding: {args.embedding_model}\n"
+			f"Chunks:    {len(chunks)}\n"
+			f"Top-k:     {args.top_k}\n"
 			f"Type 'exit' to quit."
 		)
 	)
@@ -428,7 +502,13 @@ def main():
 		if query.lower() in ("exit", "quit"):
 			break
 		with console.status("[bold cyan]Retrieving...[/bold cyan]"):
-			retrieved = retrieve(query, chunks, embeddings, emb_model, k=args.top_k)
+			retrieved = retrieve(
+				model=emb_model,
+				embeddings=embeddings,
+				query=query, 
+				chunks=chunks,
+				k=args.top_k
+			)
 
 		# token budget for context
 		# Overhead = system prompt + history + question + generation tokens + safety margin
@@ -487,7 +567,7 @@ def main():
 			answer = clean_response(answer)
 
 		chat_history.append((query, answer))
-		console.print("\n[bold green]AI:[/bold green]")
+		console.print("\n[bold green]AI Bot:[/bold green]")
 		console.print(answer)
 
 		console.print(
@@ -509,7 +589,7 @@ def main():
 		
 		if "DATA_MISSING" in answer:
 			console.print(
-				"\n[bold yellow]⚠  The requested figure was not found in the loaded documents. "
+				"\n[bold yellow] requested figure was not found in the loaded documents. "
 				"Try rephrasing or checking a different report year.[/bold yellow]"
 			)
 

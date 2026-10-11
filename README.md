@@ -9,9 +9,9 @@ My solution for Financial RAG
 
 | # | Query Prompt | Ground Truth  | Red Flag (Pipeline Failure) |
 |---|---|---|---|
-| **1** | "What was BMW's total revenue in 2023?" | **DATA_MISSING**. Your dataset only contains the **BMW 2021** report. | The model hallucinates a number, or incorrectly pulls Tesla/Ford 2023 data. |
+| **1** | "BMW's total revenue in 2023" | **DATA_MISSING**. Your dataset only contains the **BMW 2021** report. | The model hallucinates a number, or incorrectly pulls Tesla/Ford 2023 data. |
 | **2** | "How many vehicles did Rivian deliver in 2022?" | **DATA_MISSING**. Rivian is mentioned in Ford's report as an investment, but no delivery numbers are provided. | The model uses its pre-trained internet knowledge to answer (violating the "use ONLY provided context" rule). |
-| **3** | "What was Tesla's stock price on December 31, 2023?" | **DATA_MISSING**. The 10-K mentions market cap and shares outstanding, but not the exact closing stock price. | The model hallucinates a financial figure. |
+| **3** | "Tesla's stock price on December 31, 2023" | **DATA_MISSING**. The 10-K mentions market cap and shares outstanding, but not the exact closing stock price. | The model hallucinates a financial figure. |
 
 ### 2. The Cross-Company & Currency Traps
 *These test multi-document retrieval and financial literacy (handling different currencies and units).*
@@ -31,7 +31,7 @@ My solution for Financial RAG
 | **8** | "What caused the massive drop in Tesla's effective tax rate in 2023?" | A one-time, non-cash tax benefit of **$5.93 billion** due to the release of valuation allowances on deferred tax assets. | The model misses the $5.93B figure buried in the income tax notes. |
 
 ### 4. The Distractor / "News" Traps
-*These test if your embedding model (`bge-m3`) and retriever can ignore the `news.pdf` file when asked about specific companies.*
+*These test if embedding model (`bge-m3`) and retriever can ignore the `news.pdf` file when asked about specific companies.*
 
 | # | Query Prompt | Ground Truth  | Red Flag (Pipeline Failure) |
 |---|---|---|---|
