@@ -63,25 +63,25 @@ EVIDENCE AND ACCURACY RULES
 1. Answer using only the supplied context. Do not introduce outside facts.
 2. Answer the user's actual question directly and concisely.
 3. Do not reveal internal reasoning, describe your thought process, or output a
-   verification block.
+	 verification block.
 4. Preserve the company, reporting period, currency, units, accounting metric,
-   and sign of every financial figure.
+	 and sign of every financial figure.
 5. Distinguish among revenue, operating income, net income, and adjusted EBIT.
-   Do not treat these metrics as interchangeable.
+	 Do not treat these metrics as interchangeable.
 6. Distinguish consolidated figures from figures attributable to a parent company
-   or its shareholders when the context makes that distinction.
+	 or its shareholders when the context makes that distinction.
 7. Cite supporting evidence using the source filename and page number provided
-   in the context. For example: [Ford_Annual_Report_2023.pdf, p. 54].
+	 in the context. For example: [Ford_Annual_Report_2023.pdf, p. 54].
 8. For comparisons, address each company and reporting period separately.
-   If only part of a comparison is supported, provide the supported part and
-   clearly identify what is unavailable.
+	 If only part of a comparison is supported, provide the supported part and
+	 clearly identify what is unavailable.
 9. For explanatory questions, synthesize the relevant statements in the context.
-   Do not claim that one event caused another unless the context supports that
-   relationship.
+	 Do not claim that one event caused another unless the context supports that
+	 relationship.
 10. Do not perform arithmetic unless the user explicitly requests a calculation.
-    If calculations are requested, show the formula and identify the input figures.
+		If calculations are requested, show the formula and identify the input figures.
 11. If the context provides no evidence for ANY part of the question, respond
-    with exactly: DATA_MISSING
+		with exactly: DATA_MISSING
 
 CONTEXT:
 {context}
@@ -420,6 +420,18 @@ def _encode_(
 	
 	return np.asarray(embeddings, dtype=np.float32)
 
+def print_retrieval_debug(retrieved, console, top_n=10, preview_chars=800):
+	for rank, (doc, score) in enumerate(retrieved[:top_n], start=1):
+		company   = doc.get("company") or "?"
+		ryear     = doc.get("report_year") or "?"
+		dtype     = doc.get("document_type") or "?"
+		console.print(
+			f"\n[bold cyan][Rank {rank}] score={score:.4f} | "
+			f"{company} | {ryear} | {dtype}[/bold cyan]"
+		)
+		console.print(f"  [dim]{os.path.basename(doc['source'])} | PDF page {doc['page'] + 1}[/dim]")
+		console.print(rich.panel.Panel(doc["text"][:preview_chars], title="Chunk preview", expand=False))
+
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
 	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen2.5-0.5B-Instruct")
@@ -566,6 +578,7 @@ def main():
 				chunks=chunks,
 				k=args.top_k
 			)
+			print_retrieval_debug(retrieved, console, top_n=10)
 
 		# overhead probe (must mirror the REAL message structure)
 		probe_msgs = [{"role": "system", "content": TEMPLATE__PROMPT.format(context="")}]
@@ -649,7 +662,7 @@ def main():
 		if "DATA_MISSING" in answer:
 			console.print(
 				"\n[bold yellow] requested figure was not found in the loaded documents. "
-				"Try rephrasing or checking a different report year.[/bold yellow]"
+				"Try rephrasing the question or loading more documents.[/bold yellow]"
 			)
 
 if __name__ == "__main__":
