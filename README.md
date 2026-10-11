@@ -61,11 +61,11 @@ My solution for Financial RAG
 Actual challenges in enterprise RAG:
 > *"Any basic LLM can answer 'What is Tesla's revenue'. How my pipeline handles **edge cases, financial nuance, and distractor resistance**."*
 
-**Query #4: Currency Trap**
+**Query 4: Currency Trap**
 
-**Query #7: GAAP vs Non-GAAP**
+**Query 7: GAAP vs Non-GAAP**
 
-**Query #9: News Distractor**
+**Query 9: News Distractor**
 
 Failure with 0.5B/14B models: as they struggle with the multi-document math or table extraction:
 > *"Open-weights model struggles to align the columns of this mangled PDF table. In a production environment at AECOM, I would solve this by routing table-heavy pages through a Vision-Language Model like LlamaParse, or by implementing an Agentic Router that passes tabular data to a Python/Pandas tool for deterministic math."*
