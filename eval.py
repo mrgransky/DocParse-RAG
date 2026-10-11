@@ -2,6 +2,7 @@
 Small retrieval-evaluation harness for finRAG.py.
 
 Run from the project directory, where finRAG.py and Data/ are available:
+		python eval.py --embedding_model "Octen/Octen-Embedding-0.6B" --top_k 3 5 10 --show_chunks
 		python eval_set.py --embedding_model "Octen/Octen-Embedding-8B" --top_k 5 10 25
 		python eval_set.py --embedding_model "Octen/Octen-Embedding-8B" --top_k 5 10 25 --show_chunks
 
@@ -295,17 +296,17 @@ def main() -> int:
 				for k in sorted(set(args.top_k)):
 						m = result["top_k"][str(k)]
 						print(
-								f"  k={k:>2}: source_hit={int(m['source_hit'])} "
+								f"k: {k:3d} source_hit={int(m['source_hit'])} "
 								f"evidence_hit={int(m['evidence_hit'])} both_hit={int(m['both_hit'])} "
-								f"top_score={m['top_score']:.4f}"
+								f"top_score={m['top_score']}"
 								if m["top_score"] is not None
 								else f"  k={k:>2}: no results"
 						)
 				if args.show_chunks:
 						for item in result.get("chunks", []):
 								print(
-										f"    #{item['rank']} score={item['score']:.4f} "
-										f"{item['source']} p.{item['page']}: {item['text'][:220]!r}"
+										f"{item['rank']:4d} score={item['score']:.6f} "
+										f"{item['source']:<30} p{item['page']:3d} {item['text'][:250]!r}"
 								)
 
 		report = {

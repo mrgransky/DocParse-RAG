@@ -47,7 +47,7 @@ RULES:
 1. Answer ONLY using the provided context. Never use outside knowledge.
 2. Do NOT perform arithmetic.
 3. CRITICAL VERIFICATION: Before answering, you MUST output a <verification> block. 
-   Inside this block, ask yourself: "Is the exact requested figure explicitly stated in the context for the correct company and year?"
+	 Inside this block, ask yourself: "Is the exact requested figure explicitly stated in the context for the correct company and year?"
 4. If the answer to your verification is NO, your final output MUST be exactly DATA_MISSING.
 5. If YES, provide the concise answer and cite the source document.
 
@@ -56,6 +56,29 @@ Context:
 
 Question: {question}
 """
+
+def normalize_pdf_text(text: str) -> str:
+	if not text:
+		return ""
+
+	# Normalize line endings
+	text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+	# Remove null characters occasionally emitted by PDF extraction
+	text = text.replace("\x00", "")
+
+	# Normalize horizontal whitespace without removing line boundaries
+	text = re.sub(r"[ \t\f\v]+", " ", text)
+
+	# Remove whitespace at the beginning and end of each line
+	text = "\n".join(line.strip() for line in text.split("\n"))
+
+	# Collapse runs of empty lines while preserving paragraph breaks
+	text = re.sub(r"\n{3,}", "\n\n", text)
+
+	text = text.strip()
+
+	return text
 
 def get_model_kwargs(verbose: bool=False):
 	dtype = torch.float32
@@ -161,6 +184,7 @@ def load_pdfs(data_dir: str) -> List[Dict[str, Any]]:
 					reader = PdfReader(path)
 					for page_num, page in enumerate(reader.pages):
 						text = page.extract_text() or ""
+						text = normalize_pdf_text(text)
 						if text.strip():
 							docs.append(
 								{
@@ -370,7 +394,7 @@ def main():
 	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
-	parser.add_argument("--top_k", type=int, default=25)
+	parser.add_argument("--top_k", type=int, default=8)
 	parser.add_argument("--max_seq_len", type=int, default=8192, help="LLM context window (tokens)")
 	parser.add_argument("--max_new_tokens", type=int, default=512)
 	parser.add_argument("--load_in_4bit", action="store_true")
