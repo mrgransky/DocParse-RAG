@@ -407,7 +407,7 @@ def main():
 	)
 	
 	index_dir = os.path.join(
-		cache_directory.get(USER, os.getcwd()), 
+		cache_directory.get(os.getenv("USER"), os.getcwd()), 
 		f"index_{args.embedding_model.replace('/', '_')}_{cache_key}"
 	)
 	
