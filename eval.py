@@ -93,10 +93,8 @@ EVAL_SET: list[dict[str, Any]] = [
 		},
 ]
 
-
 def norm(value: str) -> str:
 		return re.sub(r"\s+", " ", value.casefold()).strip()
-
 
 def matches_any(text: str, terms: list[str]) -> bool:
 		if not terms:
@@ -104,10 +102,8 @@ def matches_any(text: str, terms: list[str]) -> bool:
 		haystack = norm(text)
 		return any(norm(term) in haystack for term in terms)
 
-
 def get_cache_dir() -> str:
 	return rag.cache_directory.get(os.getenv("USER", ""), os.getcwd())
-
 
 def load_or_build_index(
 	embedding_model_name: str,
@@ -321,7 +317,8 @@ def main() -> int:
 				"summary": summarize(results, sorted(set(args.top_k))),
 				"cases": results,
 		}
-		output_path = Path(args.output)
+
+		output_path = Path(os.path.join(rag.cache_directory.get(os.getenv("USER"), os.getcwd()), args.output))
 		output_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 		print("\n=== Retrieval summary ===")
 		print(json.dumps(report["summary"], indent=2))
