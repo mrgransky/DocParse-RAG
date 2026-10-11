@@ -1,2 +1,2 @@
 # finRAG
-Financial RAG
+My solution for Financial RAG
