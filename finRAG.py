@@ -344,13 +344,15 @@ def retrieve(
 	results = [(chunks[i], float(scores[i])) for i in top]
 
 	if verbose:
-		k = min(k, len(scores))
-		print(type(embeddings), embeddings.shape)
 		print(type(q), q.shape)
+		print(type(embeddings), embeddings.shape)
 		print(type(scores), scores.shape)
+
+		k = min(k, len(scores))
 		print(k)
 		print(type(top), top.shape)
 		print(type(results), len(results))
+
 		debug_retrieval(retrieved=results)
 
 	return results
@@ -362,6 +364,7 @@ def build_context_within_budget(
 ) -> Tuple[str, List[Dict[str, Any]]]:
 	"""Add ranked chunks until token budget is exhausted. Drops whole chunks, never slices."""
 	kept, parts, used = [], [], 0
+
 	for doc, _ in retrieved:
 		company = doc.get("company") or "unknown"
 		ryear = doc.get("report_year") or "?"
@@ -387,7 +390,9 @@ def build_context_within_budget(
 		kept.append(doc)
 		used += block_tokens
 	
-	return "".join(parts), kept
+	context = "".join(parts)
+
+	return context, kept
 
 def _encode_(
 	model,
@@ -416,10 +421,10 @@ def _encode_(
 	if normalize and not _has_internal_normalize(model):
 		kw["normalize_embeddings"] = True
 
-	print(kw)
 	embeddings = model.encode(list(texts), **kw)
 	encoded_embeddings = np.asarray(embeddings, dtype=np.float32)	
-	print(type(encoded_embeddings), encoded_embeddings.shape)
+	# print(kw)s
+	# print(type(encoded_embeddings), encoded_embeddings.shape)
 	return encoded_embeddings
 
 def debug_retrieval(retrieved):
@@ -691,19 +696,7 @@ def main():
 			f"\n[bold cyan]Retrieved {len(kept)}/{len(retrieved)} chunks "
 			f"(budget: {max_context_tokens} tok)[/bold cyan]"
 		)
-		
-		# for i, doc in enumerate(kept, start=1):
-		# 	source = doc["source"]
-		# 	page = doc["page"]
-		# 	page_label = str(page + 1) if isinstance(page, int) else "unknown"
-		# 	console.print(
-		# 		rich.panel.Panel(
-		# 			doc["text"][:1000],
-		# 			title=f"[S{i}] {os.path.basename(source)} | PDF page {page_label}",
-		# 			subtitle=source,
-		# 		)
-		# 	)
-		
+				
 		# if "DATA_MISSING" in answer:
 		# 	console.print(
 		# 		"\n[bold yellow]Requested query was not found in the loaded documents. "
