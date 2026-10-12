@@ -793,8 +793,8 @@ def get_document_embedding(
 			cache_data = {
 				"cache_key": cache_key,
 				"embedding_model": model_id,
-				"chunk_size": chunk_size,
-				"chunk_overlap": chunk_overlap,
+				# "chunk_size": chunk_size,
+				# "chunk_overlap": chunk_overlap,
 				"n_chunks": len(chunks),
 			}
 			json.dump(cache_data, f, indent=2)
