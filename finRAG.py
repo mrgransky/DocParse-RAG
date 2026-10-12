@@ -107,95 +107,91 @@ pipeline_options.do_table_structure = True   # Keep financial tables intact
 pipeline_options.table_structure_options.do_cell_matching = True
 
 converter = DocumentConverter(
-    format_options={
-        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-    }
+		format_options={
+				InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+		}
 )
 
 chunker = HierarchicalChunker()
 
 def get_file_metadata(path: str) -> dict:
-    p = pathlib.Path(path)
-    company = None
-    for part in p.parts:
-        if part.lower() in COMPANY_MAP:
-            company = COMPANY_MAP[part.lower()]
-            break
-    if company is None:
-        for k, v in COMPANY_MAP.items():
-            if k in p.stem.lower():
-                company = v
-                break
+		p = pathlib.Path(path)
+		company = None
+		for part in p.parts:
+				if part.lower() in COMPANY_MAP:
+						company = COMPANY_MAP[part.lower()]
+						break
+		if company is None:
+				for k, v in COMPANY_MAP.items():
+						if k in p.stem.lower():
+								company = v
+								break
 
-    m = re.search(r"(19|20)\d{2}", p.stem)
-    is_annual = "annual_report" in p.stem.lower() or company is not None
+		m = re.search(r"(19|20)\d{2}", p.stem)
+		is_annual = "annual_report" in p.stem.lower() or company is not None
 
-    return {
-        "company": company,
-        "report_year": int(m.group(0)) if m else None,
-        "document_type": "annual_report" if is_annual else "news",
-        "source": str(p),
-    }
+		return {
+				"company": company,
+				"report_year": int(m.group(0)) if m else None,
+				"document_type": "annual_report" if is_annual else "news",
+				"source": str(p),
+		}
 
-def load_and_process_documents(data_dir: str, verbose: bool = False) -> List[Dict[str, Any]]:
-    print(f"\n[LOADING & CHUNKING] {data_dir} via HierarchicalChunker...")
-    chunks = []
+def get_chucked_docs(data_dir: str, chunks_path: str, verbose: bool = False) -> List[Dict[str, Any]]:
+	print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
+	chunks = []
 
-    for root, _, files in os.walk(data_dir):
-        for f in sorted(files):
-            if not f.lower().endswith(".pdf"):
-                continue
+	for root, _, files in os.walk(data_dir):
+		for f in sorted(files):
+			if not f.lower().endswith(".pdf"):
+				continue
+			path = os.path.join(root, f)
+			meta = get_file_metadata(path)
+			try:
+					# Convert document
+					result = converter.convert(path)
+					doc = result.document
+			except Exception as e:
+					print(f"<!> Failed to convert {path}: {e}")
+					continue
+			# Chunk document structurally
+			for chunk in chunker.chunk(doc):
+				# 1. Extract exact page provenance
+				page_numbers = sorted(
+					list(
+						{
+							prov.page_no
+							for item in chunk.meta.doc_items
+							for prov in getattr(item, "prov", [])
+							if hasattr(prov, "page_no")
+						}
+					)
+				)
+				# 2. Extract breadcrumb hierarchy (e.g., ["Financial Report", "Balance Sheet"])
+				headings = getattr(chunk.meta, "headings", [])
+				# 3. Prepend heading hierarchy to text for superior RAG semantic retrieval
+				header_prefix = f"[{' > '.join(headings)}]\n" if headings else ""
+				enriched_text = header_prefix + chunk.text
+				chunk_record = {
+						"text": enriched_text,
+						"raw_text": chunk.text,
+						"source": path,
+						"page": page_numbers[0] if page_numbers else None,  # Primary page for citation
+						"pages": page_numbers,                               # All pages touched
+						"headings": headings,
+						"company": meta.get("company"),
+						"report_year": meta.get("report_year"),
+						"document_type": meta.get("document_type"),
+				}
+				chunks.append(chunk_record)
+				if verbose:
+					print(f"  └─ Page {chunk_record['page']} | Headings: {headings} | Length: {len(chunk.text)} chars")
 
-            path = os.path.join(root, f)
-            meta = get_file_metadata(path)
+	print(f"[FINISHED] Created {len(chunks)} structural chunks.")
+	with open(chunks_path, "wb") as f:
+		pickle.dump(chunks, f)
 
-            try:
-                # Convert document
-                result = converter.convert(path)
-                doc = result.document
-            except Exception as e:
-                print(f"<!> Failed to convert {path}: {e}")
-                continue
-
-            # Chunk document structurally
-            for chunk in chunker.chunk(doc):
-                # 1. Extract exact page provenance
-                page_numbers = sorted(
-                    list(
-                        {
-                            prov.page_no
-                            for item in chunk.meta.doc_items
-                            for prov in getattr(item, "prov", [])
-                            if hasattr(prov, "page_no")
-                        }
-                    )
-                )
-
-                # 2. Extract breadcrumb hierarchy (e.g., ["Financial Report", "Balance Sheet"])
-                headings = getattr(chunk.meta, "headings", [])
-
-                # 3. Prepend heading hierarchy to text for superior RAG semantic retrieval
-                header_prefix = f"[{' > '.join(headings)}]\n" if headings else ""
-                enriched_text = header_prefix + chunk.text
-
-                chunk_record = {
-                    "text": enriched_text,
-                    "raw_text": chunk.text,
-                    "source": path,
-                    "page": page_numbers[0] if page_numbers else None,  # Primary page for citation
-                    "pages": page_numbers,                               # All pages touched
-                    "headings": headings,
-                    "company": meta.get("company"),
-                    "report_year": meta.get("report_year"),
-                    "document_type": meta.get("document_type"),
-                }
-                chunks.append(chunk_record)
-
-                if verbose:
-                    print(f"  └─ Page {chunk_record['page']} | Headings: {headings} | Length: {len(chunk.text)} chars")
-
-    print(f"[FINISHED] Created {len(chunks)} structural chunks.")
-    return chunks
+	return chunks
 
 def get_model_kwargs(verbose: bool=False):
 	dtype = torch.float32
@@ -307,7 +303,7 @@ def compute_cache_key(data_dir: str, embed_model: str, chunk_size: int, chunk_ov
 
 	return h.hexdigest()[:16]
 
-def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]], batch_size: int):
+def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]], batch_size: int, emb_path: str):
 	texts = [c["text"] for c in chunks]
 	# embeddings = model.encode(
 	# 	texts,
@@ -318,6 +314,8 @@ def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]], batch_
 	# ).astype(np.float32)
 
 	embeddings = _encode_(model=model, texts=texts, batch_size=batch_size)
+	np.save(emb_path, embeddings)
+
 	return embeddings
 
 def retrieve(
@@ -411,9 +409,11 @@ def _encode_(
 	if normalize and not _has_internal_normalize(model):
 		kw["normalize_embeddings"] = True
 
+	print(kw)
 	embeddings = model.encode(list(texts), **kw)
-	
-	return np.asarray(embeddings, dtype=np.float32)
+	encoded_embeddings = np.asarray(embeddings, dtype=np.float32)	
+	print(type(encoded_embeddings), encoded_embeddings.shape)
+	return encoded_embeddings
 
 def print_retrieval_debug(retrieved, console, preview_chars=1500):
 	for rank, (doc, score) in enumerate(retrieved, start=1):
@@ -435,7 +435,14 @@ def print_retrieval_debug(retrieved, console, preview_chars=1500):
 			)
 		)
 
-def get_document_embedding(model_id, chunk_size, chunk_overlap, batch_size, rebuild_index: bool=False, verbose: bool=False):
+def get_document_embedding(
+	model_id: str,
+	chunk_size: int,
+	chunk_overlap: int,
+	batch_size: int,
+	rebuild_index: bool=False, 
+	verbose: bool=False
+):
 	attention, dtype = get_model_kwargs()
 
 	emb_model = _load(
@@ -445,17 +452,17 @@ def get_document_embedding(model_id, chunk_size, chunk_overlap, batch_size, rebu
 		cache_folder=cache_directory.get(os.getenv("USER"), os.getcwd()),
 		token=os.getenv("HUGGINGFACE_TOKEN"),
 	)
-	emb_max_tokens = getattr(emb_model, "max_seq_length", None)
+	# emb_max_tokens = getattr(emb_model, "max_seq_length", None)
 
-	# ~4 chars/token heuristic (conservative)
-	if emb_max_tokens is not None:
-		max_chars = emb_max_tokens * 4
-		if chunk_size > max_chars:
-			console.print(
-				f"[yellow]chunk_size={chunk_size} exceeds ~{max_chars} chars "
-				f"({emb_max_tokens} tokens) for {model_id}. "
-				f"Tail of every chunk will be invisible to the retriever.[/yellow]"
-			)
+	# # ~4 chars/token heuristic (conservative)
+	# if emb_max_tokens is not None:
+	# 	max_chars = emb_max_tokens * 4
+	# 	if chunk_size > max_chars:
+	# 		console.print(
+	# 			f"[yellow]chunk_size={chunk_size} exceeds ~{max_chars} chars "
+	# 			f"({emb_max_tokens} tokens) for {model_id}. "
+	# 			f"Tail of every chunk will be invisible to the retriever.[/yellow]"
+	# 		)
 
 	cache_key = compute_cache_key(
 		data_dir=DATA_DIR,
@@ -484,18 +491,21 @@ def get_document_embedding(model_id, chunk_size, chunk_overlap, batch_size, rebu
 			need_build = True
 	
 	if need_build:
-		chunks = load_and_process_documents(
+		chunks = get_chucked_docs(
 			data_dir=DATA_DIR,
 			# chunk_size=chunk_size,
 			# chunk_overlap=chunk_overlap,
+			chunks_path=chunks_path,
 			verbose=verbose,
 		)
-		embeddings = build_index(model=emb_model, chunks=chunks, batch_size=batch_size)
-		
-		with open(chunks_path, "wb") as f:
-			pickle.dump(chunks, f)
-		
-		np.save(emb_path, embeddings)
+	
+		embeddings = build_index(
+			model=emb_model, 
+			chunks=chunks, 
+			batch_size=batch_size,
+			emb_path=emb_path
+		)
+
 		
 		with open(meta_path, "w") as f:
 			cache_data = {
@@ -555,7 +565,7 @@ def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
 	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen3.5-0.8B")
 	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
-	parser.add_argument("--batch_size", '-bs', type=int, default=16, help="batch size for embeddings")
+	parser.add_argument("--batch_size", '-bs', type=int, default=8, help="batch size for embeddings")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
 	parser.add_argument("--top_k", type=int, default=3)
