@@ -259,24 +259,65 @@ def load_pdfs_bad_results(data_dir: str) -> List[Dict[str, Any]]:
 
 	return docs
 
-from docling.document_converter import DocumentConverter
+Here's the updated code with OCR disabled via `PdfPipelineOptions`:
+
+```python
+import os
+
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.transforms.chunker import HierarchicalChunker
 
-converter = DocumentConverter() # downloads models first time
+# ========== Pipeline configuration ==========
+# Annual reports are digitally-generated (vector) PDFs with native embedded text,
+# so OCR is unnecessary. Disabling it avoids RapidOCR weight downloads
+# (which fail on read-only filesystems) and speeds up conversion significantly.
+pipeline_options = PdfPipelineOptions()
+pipeline_options.do_ocr = False              # <-- disable OCR
+pipeline_options.do_table_structure = True   # keep table structure for RAG
+pipeline_options.table_structure_options.do_cell_matching = True
 
-def load_pdfs(data_dir: str):
+converter = DocumentConverter(
+	format_options={
+		InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+	}
+)
+
+
+def load_pdfs(data_dir: str, verbose: bool = False):
 	docs = []
 	for root, _, files in os.walk(data_dir):
 		for f in sorted(files):
 			if not f.lower().endswith(".pdf"):
 				continue
+
 			path = os.path.join(root, f)
 			meta = get_file_metadata(path)
-			result = converter.convert(path)
+
+			try:
+				result = converter.convert(path)
+			except Exception as e:
+				print(f"<!> Failed to convert {path}: {e}")
+				continue
+
 			# option A: whole doc as markdown - best for RAG
 			md = result.document.export_to_markdown()
-			print(path)
-			print(md)
+
+			if verbose:
+				print(f"\n{'='*100}")
+				print(path)
+				print(f"{'='*100}")
+				print(md)
+
+			docs.append({
+				"text": md,
+				"source": path,
+				"company": meta["company"],
+				"report_year": meta["report_year"],
+				"document_type": meta["document_type"],
+			})
+
 			# # option B: page-level like your current code
 			# for page in result.document.pages:
 			#     # Docling keeps text + tables structured
@@ -291,6 +332,7 @@ def load_pdfs(data_dir: str):
 			#         "report_year": meta["report_year"],
 			#         "document_type": meta["document_type"],
 			#     })
+
 	return docs
 
 def split_text(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
