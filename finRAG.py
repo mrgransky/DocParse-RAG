@@ -477,9 +477,10 @@ def build_context_within_budget(
 	for doc, _ in retrieved:
 		company = doc.get("company") or "unknown"
 		ryear = doc.get("report_year") or "?"
+		doc_page = doc.get("page") or "?"
 		header = (
 			f"[Source: {os.path.basename(doc['source'])} | Company: {company} | "
-			f"Report year: {ryear} | page {doc.get("page")}]\n"
+			f"Report year: {ryear} | page {doc_page}]\n"
 		)
 		block = header + doc["text"] + "\n\n"
 		block_tokens = len(tokenizer.encode(block, add_special_tokens=False))
@@ -535,10 +536,11 @@ def print_retrieval_debug(retrieved, console, preview_chars=1500):
 		company = doc.get("company") or "?"
 		ryear = doc.get("report_year") or "?"
 		doc_type = doc.get("document_type") or "?"
+		doc_page = doc.get("page") or "?"
 		console.print(
 			f"\n[bold cyan][Rank {rank}] score={score:.4f} | "
 			f"{company} | {ryear} | {doc_type} | "
-			f"{doc['source']} | page {doc['page'] + 1}[/bold cyan]"
+			f"{doc['source']} | page {doc_page}[/bold cyan]"
 		)
 		console.print(
 			rich.panel.Panel(
