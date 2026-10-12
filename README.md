@@ -84,9 +84,16 @@ Does Tesla face the same supply chain risks for those materials?
 What about BMW?
 
 ## Required Packages:
-- Transformers
-- Torch
-- Sentence-transformers
-- Docling
-- Rich
 
+$ conda create -n py312 python=3.12 -y
+
+$ pip install -r requirements.txt
+
+## how to run (default embedding + LLM models) [suitable for laptop with small GPU]:
+
+$ python finRAG.py 
+
+## how to run with larger embedding + LLM models [suitable for HPC with powerful GPU]:
+
+$ python finRAG.py -emb "Qwen/Qwen3-Embedding-8B" -llm "Qwen/Qwen3.8-27B" -v
+ 
