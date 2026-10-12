@@ -10,7 +10,8 @@ import pathlib
 import rich
 import rich.panel
 import rich.prompt
-from pypdf import PdfReader
+# from pypdf import PdfReader
+import pypdf
 from typing import Optional, List, Dict, Any, Tuple
 from sentence_transformers import SentenceTransformer
 import numpy as np
@@ -91,50 +92,6 @@ CONTEXT:
 MAX_HISTORY_TURNS = 5
 
 COMPANY_MAP = {"bmw": "BMW", "ford": "Ford", "tesla": "Tesla"}
-
-def derive_metadata(path: str) -> dict:
-	p = pathlib.Path(path)
-	company = None
-	for part in p.parts:
-			if part.lower() in COMPANY_MAP:
-					company = COMPANY_MAP[part.lower()]
-					break
-	if company is None: # fallback: check filename itself
-			for k, v in COMPANY_MAP.items():
-					if k in p.stem.lower():
-							company = v
-							break
-	m = re.search(r"(19|20)\d{2}", p.stem)
-	is_annual = "annual_report" in p.stem.lower() or company is not None
-	return {
-			"company": company,
-			"report_year": int(m.group(0)) if m else None,
-			"document_type": "annual_report" if is_annual else "news",
-			"source": str(p),
-	}
-
-def normalize_pdf_text(text: str) -> str:
-	if not text:
-		return ""
-
-	# Normalize line endings
-	text = text.replace("\r\n", "\n").replace("\r", "\n")
-
-	# Remove null characters occasionally emitted by PDF extraction
-	text = text.replace("\x00", "")
-
-	# Normalize horizontal whitespace without removing line boundaries
-	text = re.sub(r"[ \t\f\v]+", " ", text)
-
-	# Remove whitespace at the beginning and end of each line
-	text = "\n".join(line.strip() for line in text.split("\n"))
-
-	# Collapse runs of empty lines while preserving paragraph breaks
-	text = re.sub(r"\n{3,}", "\n\n", text)
-
-	text = text.strip()
-
-	return text
 
 def get_model_kwargs(verbose: bool=False):
 	dtype = torch.float32
@@ -230,15 +187,59 @@ def clean_response(text: str) -> str:
 	text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
 	return text.strip()
 
-def load_pdfs(data_dir: str) -> List[Dict[str, Any]]:
+def get_file_metadata(path: str) -> dict:
+	p = pathlib.Path(path)
+	company = None
+	for part in p.parts:
+			if part.lower() in COMPANY_MAP:
+					company = COMPANY_MAP[part.lower()]
+					break
+	if company is None: # fallback: check filename itself
+			for k, v in COMPANY_MAP.items():
+					if k in p.stem.lower():
+							company = v
+							break
+	m = re.search(r"(19|20)\d{2}", p.stem)
+	is_annual = "annual_report" in p.stem.lower() or company is not None
+	return {
+			"company": company,
+			"report_year": int(m.group(0)) if m else None,
+			"document_type": "annual_report" if is_annual else "news",
+			"source": str(p),
+	}
+
+def normalize_pdf_text(text: str) -> str:
+	if not text:
+		return ""
+
+	# Normalize line endings
+	text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+	# Remove null characters occasionally emitted by PDF extraction
+	text = text.replace("\x00", "")
+
+	# Normalize horizontal whitespace without removing line boundaries
+	text = re.sub(r"[ \t\f\v]+", " ", text)
+
+	# Remove whitespace at the beginning and end of each line
+	text = "\n".join(line.strip() for line in text.split("\n"))
+
+	# Collapse runs of empty lines while preserving paragraph breaks
+	text = re.sub(r"\n{3,}", "\n\n", text)
+
+	text = text.strip()
+
+	return text
+
+def load_pdfs_bad_results(data_dir: str) -> List[Dict[str, Any]]:
 	docs = []
 	for root, _, files in os.walk(data_dir):
 		for f in sorted(files):
 			if f.lower().endswith(".pdf"):
 				path = os.path.join(root, f)
-				meta = derive_metadata(path=path)
+				meta = get_file_metadata(path=path)
 				try:
-					reader = PdfReader(path)
+					reader = pypdf.PdfReader(path)
 					for page_num, page in enumerate(reader.pages):
 						text = page.extract_text() or ""
 						text = normalize_pdf_text(text)
@@ -254,9 +255,42 @@ def load_pdfs(data_dir: str) -> List[Dict[str, Any]]:
 							docs.append(doc)
 				except Exception as e:
 					console.print(f"[red]Error reading {path}: {e}[/red]")
-	print(f"Found number of docs: {len(docs)} from DIR: {data_dir}")
+	print(f"Found {len(docs)} documents in DIR: {data_dir}")
 
 	return docs
+
+from docling.document_converter import DocumentConverter
+from docling_core.transforms.chunker import HierarchicalChunker
+
+converter = DocumentConverter() # downloads models first time
+
+def load_pdfs(data_dir: str):
+    docs = []
+    for root, _, files in os.walk(data_dir):
+        for f in sorted(files):
+            if not f.lower().endswith(".pdf"):
+                continue
+            path = os.path.join(root, f)
+            meta = get_file_metadata(path)
+            result = converter.convert(path)
+            # option A: whole doc as markdown - best for RAG
+            md = result.document.export_to_markdown()
+            print(md)
+            # # option B: page-level like your current code
+            # for page in result.document.pages:
+            #     # Docling keeps text + tables structured
+            #     text = page.export_to_markdown() if hasattr(page, 'export_to_markdown') else ""
+            #     if not text.strip():
+            #         continue
+            #     docs.append({
+            #         "text": text, # already contains markdown tables
+            #         "source": path,
+            #         "page": page.page_no,
+            #         "company": meta["company"],
+            #         "report_year": meta["report_year"],
+            #         "document_type": meta["document_type"],
+            #     })
+    return docs
 
 def split_text(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
 	#Recursive splitter
@@ -322,7 +356,9 @@ def load_and_process_documents(data_dir: str, chunk_size: int, chunk_overlap: in
 		
 		for ch in splited_text:
 			chunk = {
-				"text": ch, "source": doc["source"], "page": doc["page"],
+				"text": ch, 
+				"source": doc.get("source"),
+				"page": doc.get("page"),
 				"company": doc.get("company"),
 				"report_year": doc.get("report_year"),
 				"document_type": doc.get("document_type"),
@@ -478,7 +514,6 @@ def print_retrieval_debug(retrieved, console, preview_chars=1500):
 def get_document_embedding(model_id, chunk_size, chunk_overlap, rebuild_index: bool=False):
 	attention, dtype = get_model_kwargs()
 
-	# Embedding:
 	emb_model = _load(
 		model_id=model_id,
 		attention=attention,
