@@ -265,32 +265,33 @@ from docling_core.transforms.chunker import HierarchicalChunker
 converter = DocumentConverter() # downloads models first time
 
 def load_pdfs(data_dir: str):
-    docs = []
-    for root, _, files in os.walk(data_dir):
-        for f in sorted(files):
-            if not f.lower().endswith(".pdf"):
-                continue
-            path = os.path.join(root, f)
-            meta = get_file_metadata(path)
-            result = converter.convert(path)
-            # option A: whole doc as markdown - best for RAG
-            md = result.document.export_to_markdown()
-            print(md)
-            # # option B: page-level like your current code
-            # for page in result.document.pages:
-            #     # Docling keeps text + tables structured
-            #     text = page.export_to_markdown() if hasattr(page, 'export_to_markdown') else ""
-            #     if not text.strip():
-            #         continue
-            #     docs.append({
-            #         "text": text, # already contains markdown tables
-            #         "source": path,
-            #         "page": page.page_no,
-            #         "company": meta["company"],
-            #         "report_year": meta["report_year"],
-            #         "document_type": meta["document_type"],
-            #     })
-    return docs
+	docs = []
+	for root, _, files in os.walk(data_dir):
+		for f in sorted(files):
+			if not f.lower().endswith(".pdf"):
+				continue
+			path = os.path.join(root, f)
+			meta = get_file_metadata(path)
+			result = converter.convert(path)
+			# option A: whole doc as markdown - best for RAG
+			md = result.document.export_to_markdown()
+			print(path)
+			print(md)
+			# # option B: page-level like your current code
+			# for page in result.document.pages:
+			#     # Docling keeps text + tables structured
+			#     text = page.export_to_markdown() if hasattr(page, 'export_to_markdown') else ""
+			#     if not text.strip():
+			#         continue
+			#     docs.append({
+			#         "text": text, # already contains markdown tables
+			#         "source": path,
+			#         "page": page.page_no,
+			#         "company": meta["company"],
+			#         "report_year": meta["report_year"],
+			#         "document_type": meta["document_type"],
+			#     })
+	return docs
 
 def split_text(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
 	#Recursive splitter
