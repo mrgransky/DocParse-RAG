@@ -90,14 +90,27 @@ CONTEXT:
 
 MAX_HISTORY_TURNS = 5
 
+COMPANY_MAP = {"bmw": "BMW", "ford": "Ford", "tesla": "Tesla"}
+
 def derive_metadata(path: str) -> dict:
 	p = pathlib.Path(path)
-	company = next((part for part in p.parts if part in {"BMW", "Ford", "Tesla"}), None)
-	m = re.search(r"(20\d{2})", p.name)
+	company = None
+	for part in p.parts:
+			if part.lower() in COMPANY_MAP:
+					company = COMPANY_MAP[part.lower()]
+					break
+	if company is None: # fallback: check filename itself
+			for k, v in COMPANY_MAP.items():
+					if k in p.stem.lower():
+							company = v
+							break
+	m = re.search(r"(19|20)\d{2}", p.stem)
+	is_annual = "annual_report" in p.stem.lower() or company is not None
 	return {
-		"company": company,
-		"report_year": int(m.group(1)) if m else None,
-		"document_type": "annual_report" if company else "news",
+			"company": company,
+			"report_year": int(m.group(0)) if m else None,
+			"document_type": "annual_report" if is_annual else "news",
+			"source": str(p),
 	}
 
 def normalize_pdf_text(text: str) -> str:
@@ -219,11 +232,11 @@ def clean_response(text: str) -> str:
 
 def load_pdfs(data_dir: str) -> List[Dict[str, Any]]:
 	docs = []
-	meta = derive_metadata(path=data_dir)
 	for root, _, files in os.walk(data_dir):
 		for f in sorted(files):
 			if f.lower().endswith(".pdf"):
 				path = os.path.join(root, f)
+				meta = derive_metadata(path=path)
 				try:
 					reader = PdfReader(path)
 					for page_num, page in enumerate(reader.pages):
@@ -231,17 +244,16 @@ def load_pdfs(data_dir: str) -> List[Dict[str, Any]]:
 						text = normalize_pdf_text(text)
 						if text.strip():
 							doc = {
-									"text": text,
-									"source": path,
-									"page": page_num,
-									"company": meta["company"],
-									"report_year": meta["report_year"],
-									"document_type": meta["document_type"],
-								}
+								"text": text,
+								"source": path,
+								"page": page_num,
+								"company": meta["company"],
+								"report_year": meta["report_year"],
+								"document_type": meta["document_type"],
+							}
 							docs.append(doc)
 				except Exception as e:
 					console.print(f"[red]Error reading {path}: {e}[/red]")
-	
 	print(f"Found number of docs: {len(docs)} from DIR: {data_dir}")
 
 	return docs
@@ -444,14 +456,14 @@ def _encode_(
 	
 	return np.asarray(embeddings, dtype=np.float32)
 
-def print_retrieval_debug(retrieved, console, top_n=10, preview_chars=800):
-	for rank, (doc, score) in enumerate(retrieved[:top_n], start=1):
-		company   = doc.get("company") or "?"
-		ryear     = doc.get("report_year") or "?"
-		dtype     = doc.get("document_type") or "?"
+def print_retrieval_debug(retrieved, console, preview_chars=800):
+	for rank, (doc, score) in enumerate(retrieved, start=1):
+		company = doc.get("company") or "?"
+		ryear = doc.get("report_year") or "?"
+		doc_type = doc.get("document_type") or "?"
 		console.print(
 			f"\n[bold cyan][Rank {rank}] score={score:.4f} | "
-			f"{company} | {ryear} | {dtype}[/bold cyan]"
+			f"{company} | {ryear} | {doc_type}[/bold cyan]"
 		)
 		console.print(f"  [dim]{os.path.basename(doc['source'])} | PDF page {doc['page'] + 1}[/dim]")
 		console.print(rich.panel.Panel(doc["text"][:preview_chars], title="Chunk preview", expand=False))
@@ -602,7 +614,7 @@ def main():
 				chunks=chunks,
 				k=args.top_k
 			)
-			print_retrieval_debug(retrieved, console, top_n=10)
+			print_retrieval_debug(retrieved, console)
 
 		# overhead probe (must mirror the REAL message structure)
 		probe_msgs = [{"role": "system", "content": TEMPLATE__PROMPT.format(context="")}]
