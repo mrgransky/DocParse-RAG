@@ -259,11 +259,6 @@ def load_pdfs_bad_results(data_dir: str) -> List[Dict[str, Any]]:
 
 	return docs
 
-Here's the updated code with OCR disabled via `PdfPipelineOptions`:
-
-```python
-import os
-
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
