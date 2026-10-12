@@ -137,7 +137,171 @@ def get_file_metadata(path: str) -> dict:
 				"source": str(p),
 		}
 
-def get_chucked_docs(data_dir: str, chunks_path: str, verbose: bool = False) -> List[Dict[str, Any]]:
+def save_chunks_jsonl(
+		chunks: List[Dict[str, Any]],
+		output_path: str,
+		verbose: bool = False,
+) -> None:
+		"""
+		Save chunks as JSON Lines (JSONL).
+
+		Each line contains one independently parseable JSON object.
+		Uses UTF-8 encoding and preserves non-ASCII characters.
+		"""
+		os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+
+		tmp_path = output_path + ".tmp"
+
+		try:
+				with open(tmp_path, "w", encoding="utf-8") as f:
+						for chunk in chunks:
+								f.write(
+										json.dumps(
+												chunk,
+												ensure_ascii=False,
+												default=str,
+										)
+										+ "\n"
+								)
+
+				# Replace the destination only after the complete write.
+				os.replace(tmp_path, output_path)
+
+		except Exception:
+				if os.path.exists(tmp_path):
+						os.remove(tmp_path)
+				raise
+
+		if verbose:
+				print(
+						f"[JSONL SAVE] {len(chunks):,} chunks -> {output_path}"
+				)
+
+def save_chunks_pickle(
+		chunks: List[Dict[str, Any]],
+		output_path: str,
+		verbose: bool = False,
+) -> None:
+		"""Save chunks as a Python pickle file."""
+		os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+
+		tmp_path = output_path + ".tmp"
+
+		try:
+				with open(tmp_path, "wb") as f:
+						pickle.dump(
+								chunks,
+								f,
+								protocol=pickle.HIGHEST_PROTOCOL,
+						)
+
+				os.replace(tmp_path, output_path)
+
+		except Exception:
+				if os.path.exists(tmp_path):
+						os.remove(tmp_path)
+				raise
+
+		if verbose:
+				print(
+						f"[PICKLE SAVE] {len(chunks):,} chunks -> {output_path}"
+				)
+
+def get_chucked_docs(
+	data_dir: str,
+	chunks_path: str,
+	verbose: bool = False,
+) -> List[Dict[str, Any]]:
+	print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
+	chunks = []
+	for root, _, files in os.walk(data_dir):
+		for filename in sorted(files):
+			if not filename.lower().endswith(".pdf"):
+				continue
+			path = os.path.join(root, filename)
+			meta = get_file_metadata(path)
+			try:
+				result = converter.convert(path)
+				doc = result.document
+			except Exception as e:
+				print(f"<!> Failed to convert {path}: {e}")
+				continue
+			for chunk in chunker.chunk(doc):
+				# 1. Extract page provenance
+				page_numbers = sorted(
+					{
+						prov.page_no
+						for item in chunk.meta.doc_items
+						for prov in getattr(item, "prov", [])
+						if hasattr(prov, "page_no")
+					}
+				)
+				
+				# 2. Extract heading hierarchy
+				headings = getattr(chunk.meta, "headings", []) or []
+				
+				# 3. Enrich chunk text with heading context
+				header_prefix = (
+						f"[{' > '.join(headings)}]\n"
+						if headings
+						else ""
+				)
+				enriched_text = header_prefix + chunk.text
+				
+				# 4. Create deterministic chunk ID
+				identity = {
+					"source": os.path.normpath(os.path.abspath(path)),
+					"pages": page_numbers,
+					"headings": headings,
+					"raw_text": chunk.text,
+				}
+				identity_json = json.dumps(
+					identity,
+					ensure_ascii=False,
+					sort_keys=True,
+				)
+				chunk_id = hashlib.sha256(identity_json.encode("utf-8")).hexdigest()[:16]
+				
+				# 5. Construct chunk record
+				chunk_record = {
+					"chunk_id": chunk_id,
+					"text": enriched_text,
+					"raw_text": chunk.text,
+					"source": path,
+					"page": page_numbers[0] if page_numbers else None,
+					"pages": page_numbers,
+					"headings": headings,
+					"company": meta.get("company"),
+					"report_year": meta.get("report_year"),
+					"document_type": meta.get("document_type"),
+				}
+				chunks.append(chunk_record)
+				if verbose:
+					print(
+						f"  └─ ID: {chunk_id} | "
+						f"Pages: {page_numbers} | "
+						f"Headings: {headings} | "
+						f"Length: {len(chunk.text)} chars"
+					)
+	print(f"[FINISHED] Created {len(chunks):,} structural chunks.")
+
+	# 6. Save both representations
+	base_path = os.path.splitext(chunks_path)[0]
+	jsonl_path = base_path + ".jsonl"
+	pickle_path = base_path + ".pkl"
+	save_chunks_jsonl(
+		chunks=chunks,
+		output_path=jsonl_path,
+		verbose=verbose,
+	)
+	save_chunks_pickle(
+		chunks=chunks,
+		output_path=pickle_path,
+		verbose=verbose,
+	)
+	return chunks
+
+def get_chucked_docs_own(data_dir: str, chunks_path: str, verbose: bool = False) -> List[Dict[str, Any]]:
 	print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
 	chunks = []
 
@@ -167,27 +331,32 @@ def get_chucked_docs(data_dir: str, chunks_path: str, verbose: bool = False) -> 
 						}
 					)
 				)
+
+
 				# 2. Extract breadcrumb hierarchy (e.g., ["Financial Report", "Balance Sheet"])
 				headings = getattr(chunk.meta, "headings", [])
+
+
 				# 3. Prepend heading hierarchy to text for superior RAG semantic retrieval
 				header_prefix = f"[{' > '.join(headings)}]\n" if headings else ""
 				enriched_text = header_prefix + chunk.text
 				chunk_record = {
-						"text": enriched_text,
-						"raw_text": chunk.text,
-						"source": path,
-						"page": page_numbers[0] if page_numbers else None,  # Primary page for citation
-						"pages": page_numbers,                               # All pages touched
-						"headings": headings,
-						"company": meta.get("company"),
-						"report_year": meta.get("report_year"),
-						"document_type": meta.get("document_type"),
+					"text": enriched_text,
+					"raw_text": chunk.text,
+					"source": path,
+					"page": page_numbers[0] if page_numbers else None,  # Primary page for citation
+					"pages": page_numbers,                               # All pages touched
+					"headings": headings,
+					"company": meta.get("company"),
+					"report_year": meta.get("report_year"),
+					"document_type": meta.get("document_type"),
 				}
 				chunks.append(chunk_record)
 				if verbose:
 					print(f"  └─ Page {chunk_record['page']} | Headings: {headings} | Length: {len(chunk.text)} chars")
 
 	print(f"[FINISHED] Created {len(chunks)} structural chunks.")
+	
 	with open(chunks_path, "wb") as f:
 		pickle.dump(chunks, f)
 
