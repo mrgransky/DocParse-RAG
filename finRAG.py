@@ -324,6 +324,7 @@ def retrieve(
 	query: str,
 	chunks: List[Dict[str, Any]],
 	k: int,
+	verbose: bool = True,
 ):
 	# q = model.encode(
 	# 	[query], 
@@ -346,6 +347,9 @@ def retrieve(
 	top = top[np.argsort(-scores[top])]
 
 	results = [(chunks[i], float(scores[i])) for i in top]
+
+	if verbose:
+		debug_retrieval(retrieved=results)
 
 	return results
 
@@ -605,10 +609,10 @@ def main():
 				embeddings=embeddings,
 				chunks=chunks,
 				query=query, 
-				k=args.top_k
+				k=args.top_k,
+				verbose=args.verbose,
 			)
-			debug_retrieval(retrieved)
-
+	
 		# overhead probe 
 		# mirror REAL message structure
 		probe_msgs = [{"role": "system", "content": TEMPLATE__PROMPT.format(context="")}]
@@ -635,7 +639,7 @@ def main():
 			prompt_msgs.append({"role": "user", "content": u})
 			prompt_msgs.append({"role": "assistant", "content": a})
 		prompt_msgs.append({"role": "user", "content": query})
-		print(prompt_msgs)
+		print(json.dumps(probe_msgs, indent=2, ensure_ascii=False))
 
 		with console.status("[bold cyan]Generating...[/bold cyan]"):
 			prompt_text = tokenizer.apply_chat_template(
