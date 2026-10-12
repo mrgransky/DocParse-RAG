@@ -1,7 +1,6 @@
 # finRAG
 My solution for Financial RAG
 
-
 ## Task:
 ---
 Analysis of Annual Reports within the automotive sector
@@ -16,7 +15,6 @@ AI-based RAG pipeline to extract and analyze key financial metrics from annual r
 The pipeline will be able to answer questions about the financial performance of car companies, e.g., Tesla, Ford, BMW, etc.
 
 ## Test Cases for RAG Pipeline
----
 
 from the instruction:
 
@@ -89,11 +87,10 @@ $ conda create -n py312 python=3.12 -y
 
 $ pip install -r requirements.txt
 
-## how to run (default embedding + LLM models) [suitable for laptop with small GPU]:
+## how to run (default embedding + LLM models) [laptop with small GPU]:
 
 $ python finRAG.py 
 
-## how to run with larger embedding + LLM models [suitable for HPC with powerful GPU]:
+## Run with larger embedding + LLM models [HPC with powerful GPU]:
 
 $ python finRAG.py -emb "Qwen/Qwen3-Embedding-8B" -llm "Qwen/Qwen3.8-27B" -v
- 

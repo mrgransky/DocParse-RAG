@@ -855,7 +855,7 @@ def get_llm(model_id, load_in_4bit: bool=False):
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
 	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen3.5-0.8B")
-	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
+	parser.add_argument("--embedding_model", "-emb", type=str, default="Qwen/Qwen3-Embedding-0.6B",help="context embedder")
 	parser.add_argument("--batch_size", '-bs', type=int, default=8, help="batch size for embeddings")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
