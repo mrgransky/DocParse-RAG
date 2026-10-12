@@ -866,9 +866,9 @@ def main():
 
 	emb_model, chunks, embeddings = get_document_embedding(
 		model_id=args.embedding_model,
-		# batch_size=args.batch_size,
+		batch_size=args.batch_size,
 		# chunk_size=args.chunk_size,
-		chunk_overlap=args.chunk_overlap,
+		# chunk_overlap=args.chunk_overlap,
 		rebuild_index=args.rebuild_index,
 		verbose=args.verbose,
 	)
