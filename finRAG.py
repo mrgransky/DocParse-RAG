@@ -6,6 +6,7 @@ import hashlib
 import json
 import pickle
 import re
+import pathlib
 import rich
 import rich.panel
 import rich.prompt
@@ -88,6 +89,16 @@ CONTEXT:
 """
 
 MAX_HISTORY_TURNS = 5
+
+def derive_metadata(path: str) -> dict:
+	p = pathlib.Path(path)
+	company = next((part for part in p.parts if part in {"BMW", "Ford", "Tesla"}), None)
+	m = re.search(r"(20\d{2})", p.name)
+	return {
+		"company": company,
+		"report_year": int(m.group(1)) if m else None,
+		"document_type": "annual_report" if company else "news",
+	}
 
 def normalize_pdf_text(text: str) -> str:
 	if not text:
@@ -208,6 +219,7 @@ def clean_response(text: str) -> str:
 
 def load_pdfs(data_dir: str) -> List[Dict[str, Any]]:
 	docs = []
+	meta = derive_metadata(path=data_dir)
 	for root, _, files in os.walk(data_dir):
 		for f in sorted(files):
 			if f.lower().endswith(".pdf"):
@@ -218,13 +230,15 @@ def load_pdfs(data_dir: str) -> List[Dict[str, Any]]:
 						text = page.extract_text() or ""
 						text = normalize_pdf_text(text)
 						if text.strip():
-							docs.append(
-								{
+							doc = {
 									"text": text,
 									"source": path,
 									"page": page_num,
+									"company": meta["company"],
+									"report_year": meta["report_year"],
+									"document_type": meta["document_type"],
 								}
-							)
+							docs.append(doc)
 				except Exception as e:
 					console.print(f"[red]Error reading {path}: {e}[/red]")
 	
@@ -295,7 +309,12 @@ def load_and_process_documents(data_dir: str, chunk_size: int, chunk_overlap: in
 		)
 		
 		for ch in splited_text:
-			chunk = {"text": ch, "source": doc["source"], "page": doc["page"]}
+			chunk = {
+				"text": ch, "source": doc["source"], "page": doc["page"],
+				"company": doc.get("company"),
+				"report_year": doc.get("report_year"),
+				"document_type": doc.get("document_type"),
+			}
 			chunks.append(chunk)
 	
 	print(f"[SPLITED] {len(chunks)} chunks.")
@@ -370,7 +389,12 @@ def build_context_within_budget(
 	"""Add ranked chunks until token budget is exhausted. Drops whole chunks, never slices."""
 	kept, parts, used = [], [], 0
 	for doc, _ in retrieved:
-		header = f"[Source: {os.path.basename(doc['source'])} page {doc['page'] + 1}]\n"
+		company = doc.get("company") or "unknown"
+		ryear = doc.get("report_year") or "?"
+		header = (
+			f"[Source: {os.path.basename(doc['source'])} | Company: {company} | "
+			f"Report year: {ryear} | PDF page {doc['page'] + 1}]\n"
+		)
 		block = header + doc["text"] + "\n\n"
 		block_tokens = len(tokenizer.encode(block, add_special_tokens=False))
 		if used + block_tokens > max_context_tokens:
