@@ -98,19 +98,12 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.transforms.chunker import HierarchicalChunker
 
-# ==========================================
-# 1. Pipeline & Converter Configuration
-# ==========================================
 pipeline_options = PdfPipelineOptions()
 pipeline_options.do_ocr = False              # Vector PDF: native text extraction
 pipeline_options.do_table_structure = True   # Keep financial tables intact
 pipeline_options.table_structure_options.do_cell_matching = True
 
-converter = DocumentConverter(
-		format_options={
-				InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-		}
-)
+converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)})
 
 chunker = HierarchicalChunker()
 
@@ -137,82 +130,107 @@ def get_file_metadata(path: str) -> dict:
 				"source": str(p),
 		}
 
+def save_chunks_summary(
+	chunks: List[Dict[str, Any]],
+	output_path: str,
+):
+	lengths = [len(c.get("raw_text", "")) for c in chunks]
+	summary = {
+		"n_chunks": len(chunks),
+		"n_documents": len({c["source"] for c in chunks}),
+		"n_companies": len(
+			{
+				c["company"]
+				for c in chunks
+				if c.get("company")
+			}
+		),
+		"n_empty_chunks": sum(
+			not c.get("raw_text", "").strip()
+			for c in chunks
+		),
+		"n_chunks_without_page": sum(
+			c.get("page") is None
+			for c in chunks
+		),
+		"n_chunks_without_headings": sum(
+			not c.get("headings")
+			for c in chunks
+		),
+		"text_length_chars": {
+			"min": min(lengths, default=0),
+			"max": max(lengths, default=0),
+			"mean": sum(lengths) / len(lengths) if lengths else 0,
+		},
+	}
+
+	os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+
+	with open(output_path, "w", encoding="utf-8") as f:
+		json.dump(summary, f, ensure_ascii=False, indent=2,)
+
 def save_chunks_jsonl(
-		chunks: List[Dict[str, Any]],
-		output_path: str,
-		verbose: bool = False,
+	chunks: List[Dict[str, Any]],
+	output_path: str,
+	verbose: bool = False,
 ) -> None:
-		"""
-		Save chunks as JSON Lines (JSONL).
+	os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+	tmp_path = output_path + ".tmp"
 
-		Each line contains one independently parseable JSON object.
-		Uses UTF-8 encoding and preserves non-ASCII characters.
-		"""
-		os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-		tmp_path = output_path + ".tmp"
 
-		try:
-				with open(tmp_path, "w", encoding="utf-8") as f:
-						for chunk in chunks:
-								f.write(
-										json.dumps(
-												chunk,
-												ensure_ascii=False,
-												default=str,
-										)
-										+ "\n"
-								)
-
-				# Replace the destination only after the complete write.
-				os.replace(tmp_path, output_path)
-
-		except Exception:
-				if os.path.exists(tmp_path):
-						os.remove(tmp_path)
-				raise
-
-		if verbose:
-				print(
-						f"[JSONL SAVE] {len(chunks):,} chunks -> {output_path}"
+	try:
+		with open(tmp_path, "w", encoding="utf-8") as f:
+			for chunk in chunks:
+				f.write(
+						json.dumps(
+								chunk,
+								ensure_ascii=False,
+								default=str,
+						)
+						+ "\n"
 				)
+		# Replace the destination only after the complete write
+		os.replace(tmp_path, output_path)
+
+
+
+
+	except Exception:
+		if os.path.exists(tmp_path):
+			os.remove(tmp_path)
+		raise
+	
+	if verbose:
+		print(f"[JSONL] {len(chunks)} chunks -> {output_path}")
 
 def save_chunks_pickle(
-		chunks: List[Dict[str, Any]],
-		output_path: str,
-		verbose: bool = False,
+	chunks: List[Dict[str, Any]],
+	output_path: str,
+	verbose: bool = False,
 ) -> None:
-		"""Save chunks as a Python pickle file."""
-		os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+	os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+	tmp_path = output_path + ".tmp"
+	try:
+		with open(tmp_path, "wb") as f:
+			pickle.dump(chunks, f, protocol=pickle.HIGHEST_PROTOCOL,)
+		os.replace(tmp_path, output_path)
+	except Exception:
+		if os.path.exists(tmp_path):
+			os.remove(tmp_path)
+		raise
 
-		tmp_path = output_path + ".tmp"
+	if verbose:
+		print(f"[PICKLE] {len(chunks):,} chunks -> {output_path}")
 
-		try:
-				with open(tmp_path, "wb") as f:
-						pickle.dump(
-								chunks,
-								f,
-								protocol=pickle.HIGHEST_PROTOCOL,
-						)
-
-				os.replace(tmp_path, output_path)
-
-		except Exception:
-				if os.path.exists(tmp_path):
-						os.remove(tmp_path)
-				raise
-
-		if verbose:
-				print(
-						f"[PICKLE SAVE] {len(chunks):,} chunks -> {output_path}"
-				)
-
-def get_chucked_docs(
+def get_chucked_docs_old(
 	data_dir: str,
 	chunks_path: str,
 	verbose: bool = False,
 ) -> List[Dict[str, Any]]:
-	print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
+	if verbose:
+		print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
+	
 	chunks = []
 	for root, _, files in os.walk(data_dir):
 		for filename in sorted(files):
@@ -227,7 +245,7 @@ def get_chucked_docs(
 				print(f"<!> Failed to convert {path}: {e}")
 				continue
 			for chunk in chunker.chunk(doc):
-				# 1. Extract page provenance
+				# Extract page provenance
 				page_numbers = sorted(
 					{
 						prov.page_no
@@ -237,18 +255,18 @@ def get_chucked_docs(
 					}
 				)
 				
-				# 2. Extract heading hierarchy
+				# Extract heading hierarchy
 				headings = getattr(chunk.meta, "headings", []) or []
 				
-				# 3. Enrich chunk text with heading context
+				# Enrich chunk text with heading context
 				header_prefix = (
-						f"[{' > '.join(headings)}]\n"
-						if headings
-						else ""
+					f"[{' > '.join(headings)}]\n"
+					if headings
+					else ""
 				)
 				enriched_text = header_prefix + chunk.text
 				
-				# 4. Create deterministic chunk ID
+				# Create deterministic chunk ID
 				identity = {
 					"source": os.path.normpath(os.path.abspath(path)),
 					"pages": page_numbers,
@@ -262,7 +280,7 @@ def get_chucked_docs(
 				)
 				chunk_id = hashlib.sha256(identity_json.encode("utf-8")).hexdigest()[:16]
 				
-				# 5. Construct chunk record
+				# Construct chunk record
 				chunk_record = {
 					"chunk_id": chunk_id,
 					"text": enriched_text,
@@ -276,89 +294,161 @@ def get_chucked_docs(
 					"document_type": meta.get("document_type"),
 				}
 				chunks.append(chunk_record)
+
 				if verbose:
 					print(
-						f"  └─ ID: {chunk_id} | "
+						f"Chunk_ID: {chunk_id} | "
 						f"Pages: {page_numbers} | "
 						f"Headings: {headings} | "
 						f"Length: {len(chunk.text)} chars"
 					)
-	print(f"[FINISHED] Created {len(chunks):,} structural chunks.")
 
-	# 6. Save both representations
+	print(f"[DONE] Created {len(chunks):,} structural chunks.")
+
+	# Save both pkl and jsonl files:
 	base_path = os.path.splitext(chunks_path)[0]
 	jsonl_path = base_path + ".jsonl"
 	pickle_path = base_path + ".pkl"
+	chuncks_summary_path = base_path + "_summary.json"
+
 	save_chunks_jsonl(
 		chunks=chunks,
 		output_path=jsonl_path,
 		verbose=verbose,
 	)
+
 	save_chunks_pickle(
 		chunks=chunks,
 		output_path=pickle_path,
 		verbose=verbose,
 	)
+
+	save_chunks_summary(
+		chunks=chunks,
+		output_path=chuncks_summary_path,
+	)
+
 	return chunks
 
-def get_chucked_docs_own(data_dir: str, chunks_path: str, verbose: bool = False) -> List[Dict[str, Any]]:
-	print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
-	chunks = []
+def get_chucked_docs(
+	data_dir: str,
+	chunks_path: str,
+	verbose: bool = False,
+) -> List[Dict[str, Any]]:
+	# Get paths for cached files
+	base_path = os.path.splitext(chunks_path)[0]
+	jsonl_path = base_path + ".jsonl"
+	pickle_path = base_path + ".pkl"
+	chunks_summary_path = base_path + "_summary.json"
 
+	# ========== CACHE CHECK ==========
+	if os.path.exists(pickle_path):
+		if verbose:
+			print(f"[CACHE] Found existing structural chunks at: {pickle_path}")
+			print(f"[CACHE] Loading cached chunks instead of parsing PDFs...")
+		try:
+			with open(pickle_path, "rb") as f:
+				chunks = pickle.load(f)
+			print(f"[DONE] Loaded {len(chunks):,} cached structural chunks.")
+			return chunks
+		except Exception as e:
+			print(f"<!> Failed to load cached pickle ({e}). Re-processing PDFs...")
+
+	# ========== PROCESS PDFs (Only runs if cache is missing) ==========
+	if verbose:
+		print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
+	
+	chunks = []
 	for root, _, files in os.walk(data_dir):
-		for f in sorted(files):
-			if not f.lower().endswith(".pdf"):
+		for filename in sorted(files):
+			if not filename.lower().endswith(".pdf"):
 				continue
-			path = os.path.join(root, f)
+			path = os.path.join(root, filename)
 			meta = get_file_metadata(path)
 			try:
-					# Convert document
-					result = converter.convert(path)
-					doc = result.document
+				result = converter.convert(path)
+				doc = result.document
 			except Exception as e:
-					print(f"<!> Failed to convert {path}: {e}")
-					continue
-			# Chunk document structurally
+				print(f"<!> Failed to convert {path}: {e}")
+				continue
 			for chunk in chunker.chunk(doc):
-				# 1. Extract exact page provenance
+				# Extract page provenance
 				page_numbers = sorted(
-					list(
-						{
-							prov.page_no
-							for item in chunk.meta.doc_items
-							for prov in getattr(item, "prov", [])
-							if hasattr(prov, "page_no")
-						}
-					)
+					{
+						prov.page_no
+						for item in chunk.meta.doc_items
+						for prov in getattr(item, "prov", [])
+						if hasattr(prov, "page_no")
+					}
 				)
-
-
-				# 2. Extract breadcrumb hierarchy (e.g., ["Financial Report", "Balance Sheet"])
-				headings = getattr(chunk.meta, "headings", [])
-
-
-				# 3. Prepend heading hierarchy to text for superior RAG semantic retrieval
-				header_prefix = f"[{' > '.join(headings)}]\n" if headings else ""
+				
+				# Extract heading hierarchy
+				headings = getattr(chunk.meta, "headings", []) or []
+				
+				# Enrich chunk text with heading context
+				header_prefix = (
+					f"[{' > '.join(headings)}]\n"
+					if headings
+					else ""
+				)
 				enriched_text = header_prefix + chunk.text
+				
+				# Create deterministic chunk ID
+				identity = {
+					"source": os.path.normpath(os.path.abspath(path)),
+					"pages": page_numbers,
+					"headings": headings,
+					"raw_text": chunk.text,
+				}
+				identity_json = json.dumps(
+					identity,
+					ensure_ascii=False,
+					sort_keys=True,
+				)
+				chunk_id = hashlib.sha256(identity_json.encode("utf-8")).hexdigest()[:16]
+				
+				# Construct chunk record
 				chunk_record = {
+					"chunk_id": chunk_id,
 					"text": enriched_text,
 					"raw_text": chunk.text,
 					"source": path,
-					"page": page_numbers[0] if page_numbers else None,  # Primary page for citation
-					"pages": page_numbers,                               # All pages touched
+					"page": page_numbers[0] if page_numbers else None,
+					"pages": page_numbers,
 					"headings": headings,
 					"company": meta.get("company"),
 					"report_year": meta.get("report_year"),
 					"document_type": meta.get("document_type"),
 				}
 				chunks.append(chunk_record)
-				if verbose:
-					print(f"  └─ Page {chunk_record['page']} | Headings: {headings} | Length: {len(chunk.text)} chars")
 
-	print(f"[FINISHED] Created {len(chunks)} structural chunks.")
-	
-	with open(chunks_path, "wb") as f:
-		pickle.dump(chunks, f)
+				if verbose:
+					print(
+						f"Chunk_ID: {chunk_id} | "
+						f"Pages: {page_numbers} | "
+						f"Headings: {headings} | "
+						f"Length: {len(chunk.text)} chars"
+					)
+
+	print(f"[DONE] Created {len(chunks):,} structural chunks.")
+
+	# Save outputs for future runs
+	save_chunks_jsonl(
+		chunks=chunks,
+		output_path=jsonl_path,
+		verbose=verbose,
+	)
+
+	save_chunks_pickle(
+		chunks=chunks,
+		output_path=pickle_path,
+		verbose=verbose,
+	)
+
+	save_chunks_summary(
+		chunks=chunks,
+		output_path=chunks_summary_path,
+	)
 
 	return chunks
 
@@ -500,17 +590,19 @@ def retrieve(
 	# 	convert_to_numpy=True, 
 	# 	normalize_embeddings=True
 	# )[0].astype(np.float32)
-	q = _encode_(model=model, texts=[query], show_progress_bar=False)
+	q = _encode_(model=model, texts=[query], batch_size=1, show_progress_bar=False)
 
 	# scores = embeddings @ q  # cosine sim (both normalized)
 	scores = (embeddings @ q.T).squeeze(axis=1) # (3092, 1024) @ (1024, 1) -> (3092,)
-	
 	
 	# sort only the k we keep
 	top = np.argpartition(-scores, k - 1)[:k]
 	top = top[np.argsort(-scores[top])]
 
-	results = [(chunks[i], float(scores[i])) for i in top]
+	results = [
+		(chunks[i], float(scores[i])) 
+		for i in top
+	]
 
 	if verbose:
 		print(type(q), q.shape)
@@ -618,22 +710,26 @@ def debug_retrieval(retrieved):
 
 def get_document_embedding(
 	model_id: str,
-	chunk_size: int,
-	chunk_overlap: int,
+	chunk_size: int,       # Kept for compatibility / embedding metadata
+	chunk_overlap: int,    # Kept for compatibility / embedding metadata
 	batch_size: int,
-	rebuild_index: bool=False, 
-	verbose: bool=False
-):
+	rebuild_index: bool = False, 
+	verbose: bool = False
+) -> Tuple[Any, List[Dict[str, Any]], np.ndarray]:
+	
 	attention, dtype = get_model_kwargs()
+	user_cache_dir = cache_directory.get(os.getenv("USER"), os.getcwd())
 
-	emb_model = _load(
-		model_id=model_id,
-		attention=attention,
-		dtype=dtype,
-		cache_folder=cache_directory.get(os.getenv("USER"), os.getcwd()),
-		token=os.getenv("HUGGINGFACE_TOKEN"),
-	)
+	# ========== 1. GLOBAL / SHARED CHUNK CACHE ==========
+	# Create a deterministic key for the DATA directory (independent of embedding model)
+	data_hash = hashlib.sha256(os.path.abspath(DATA_DIR).encode("utf-8")).hexdigest()[:10]
+	shared_chunks_dir = os.path.join(user_cache_dir, "structural_chunks")
+	os.makedirs(shared_chunks_dir, exist_ok=True)
+	
+	# The chunks file is saved globally based ONLY on the source data directory
+	shared_chunks_path = os.path.join(shared_chunks_dir, f"chunks_data_{data_hash}.pkl")
 
+	# ========== 2. MODEL-SPECIFIC EMBEDDING INDEX ==========
 	cache_key = compute_cache_key(
 		data_dir=DATA_DIR,
 		embed_model=model_id,
@@ -642,36 +738,47 @@ def get_document_embedding(
 	)
 	
 	index_dir = os.path.join(
-		cache_directory.get(os.getenv("USER"), os.getcwd()), 
+		user_cache_dir, 
 		f"index_{model_id.replace('/', '_')}_{cache_key}"
 	)
-	
 	os.makedirs(index_dir, exist_ok=True)
 
-	chunks_path = os.path.join(index_dir, "chunks.pkl")
 	emb_path = os.path.join(index_dir, "embeddings.npy")
 	meta_path = os.path.join(index_dir, "meta.json")
-	need_build = (
-		rebuild_index 
-		or not (os.path.exists(chunks_path) and os.path.exists(emb_path))
-	)
 
-	if not need_build:
+	# Check if we need to regenerate embeddings
+	need_embedding_rebuild = rebuild_index or not os.path.exists(emb_path)
+
+	if not need_embedding_rebuild and os.path.exists(meta_path):
 		with open(meta_path) as f:
 			meta = json.load(f)
 		if meta.get("cache_key") != cache_key:
-			console.print("[yellow]Cache key mismatch, rebuilding index.[/yellow]")
-			need_build = True
-	
-	if need_build:
-		chunks = get_chucked_docs(
-			data_dir=DATA_DIR,
-			# chunk_size=chunk_size,
-			# chunk_overlap=chunk_overlap,
-			chunks_path=chunks_path,
-			verbose=verbose,
+			if verbose:
+				print("[WARN] Cache key mismatch, rebuilding embeddings.")
+			need_embedding_rebuild = True
+
+	# ========== 3. LOAD OR GENERATE STRUCTURAL CHUNKS ==========
+	# This will load instantly (0.1 seconds) if any other model has already chunked this data_dir
+	chunks = get_chucked_docs(
+		data_dir=DATA_DIR,
+		chunks_path=shared_chunks_path, # Passed to the shared cache location
+		verbose=verbose,
+	)
+
+	# ========== 4. LOAD OR GENERATE EMBEDDINGS ==========
+	if need_embedding_rebuild:
+		if verbose:
+			print(f"\n[EMBEDDING] Generating embeddings using model: {model_id}...")
+		
+		# Load the model only when actual embedding generation is required
+		emb_model = _load(
+			model_id=model_id,
+			attention=attention,
+			dtype=dtype,
+			cache_folder=user_cache_dir,
+			token=os.getenv("HUGGINGFACE_TOKEN"),
 		)
-	
+		
 		embeddings = build_index(
 			model=emb_model, 
 			chunks=chunks, 
@@ -679,21 +786,28 @@ def get_document_embedding(
 			emb_path=emb_path
 		)
 
+		# Save embedding metadata
 		with open(meta_path, "w") as f:
 			cache_data = {
-					"cache_key": cache_key,
-					"embedding_model": model_id,
-					"chunk_size": chunk_size,
-					"chunk_overlap": chunk_overlap,
-					"n_chunks": len(chunks),
-				}
+				"cache_key": cache_key,
+				"embedding_model": model_id,
+				"chunk_size": chunk_size,
+				"chunk_overlap": chunk_overlap,
+				"n_chunks": len(chunks),
+			}
 			json.dump(cache_data, f, indent=2)
 	else:
-		print(f"[CACHED] embedding: {model_id}")
+		if verbose:
+			print(f"[CACHED] Embedding index found for: {model_id}")
 		
-		with open(chunks_path, "rb") as f:
-			chunks = pickle.load(f)
-		
+		# Load model on-demand for retrieval, even if index is cached
+		emb_model = _load(
+			model_id=model_id,
+			attention=attention,
+			dtype=dtype,
+			cache_folder=user_cache_dir,
+			token=os.getenv("HUGGINGFACE_TOKEN"),
+		)
 		embeddings = np.load(emb_path)
 
 	return emb_model, chunks, embeddings

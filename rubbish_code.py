@@ -200,3 +200,146 @@ def load_and_process_documents(data_dir: str, chunk_size: int, chunk_overlap: in
 	
 	return chunks
 
+def get_chucked_docs_own(data_dir: str, chunks_path: str, verbose: bool = False) -> List[Dict[str, Any]]:
+	print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
+	chunks = []
+
+	for root, _, files in os.walk(data_dir):
+		for f in sorted(files):
+			if not f.lower().endswith(".pdf"):
+				continue
+			path = os.path.join(root, f)
+			meta = get_file_metadata(path)
+			try:
+					# Convert document
+					result = converter.convert(path)
+					doc = result.document
+			except Exception as e:
+					print(f"<!> Failed to convert {path}: {e}")
+					continue
+			# Chunk document structurally
+			for chunk in chunker.chunk(doc):
+				# 1. Extract exact page provenance
+				page_numbers = sorted(
+					list(
+						{
+							prov.page_no
+							for item in chunk.meta.doc_items
+							for prov in getattr(item, "prov", [])
+							if hasattr(prov, "page_no")
+						}
+					)
+				)
+
+
+				# 2. Extract breadcrumb hierarchy (e.g., ["Financial Report", "Balance Sheet"])
+				headings = getattr(chunk.meta, "headings", [])
+
+
+				# 3. Prepend heading hierarchy to text for superior RAG semantic retrieval
+				header_prefix = f"[{' > '.join(headings)}]\n" if headings else ""
+				enriched_text = header_prefix + chunk.text
+				chunk_record = {
+					"text": enriched_text,
+					"raw_text": chunk.text,
+					"source": path,
+					"page": page_numbers[0] if page_numbers else None,  # Primary page for citation
+					"pages": page_numbers,                               # All pages touched
+					"headings": headings,
+					"company": meta.get("company"),
+					"report_year": meta.get("report_year"),
+					"document_type": meta.get("document_type"),
+				}
+				chunks.append(chunk_record)
+				if verbose:
+					print(f"  └─ Page {chunk_record['page']} | Headings: {headings} | Length: {len(chunk.text)} chars")
+
+	print(f"[FINISHED] Created {len(chunks)} structural chunks.")
+	
+	with open(chunks_path, "wb") as f:
+		pickle.dump(chunks, f)
+
+	return chunks
+
+def get_document_embedding_old(
+	model_id: str,
+	chunk_size: int,
+	chunk_overlap: int,
+	batch_size: int,
+	rebuild_index: bool=False, 
+	verbose: bool=False
+):
+	attention, dtype = get_model_kwargs()
+
+	emb_model = _load(
+		model_id=model_id,
+		attention=attention,
+		dtype=dtype,
+		cache_folder=cache_directory.get(os.getenv("USER"), os.getcwd()),
+		token=os.getenv("HUGGINGFACE_TOKEN"),
+	)
+
+	cache_key = compute_cache_key(
+		data_dir=DATA_DIR,
+		embed_model=model_id,
+		chunk_size=chunk_size,
+		chunk_overlap=chunk_overlap,
+	)
+	
+	index_dir = os.path.join(
+		cache_directory.get(os.getenv("USER"), os.getcwd()), 
+		f"index_{model_id.replace('/', '_')}_{cache_key}"
+	)
+	
+	os.makedirs(index_dir, exist_ok=True)
+
+	chunks_path = os.path.join(index_dir, "chunks.pkl")
+	emb_path = os.path.join(index_dir, "embeddings.npy")
+	meta_path = os.path.join(index_dir, "meta.json")
+	need_build = (
+		rebuild_index 
+		or not (os.path.exists(chunks_path) and os.path.exists(emb_path))
+	)
+
+	if not need_build:
+		with open(meta_path) as f:
+			meta = json.load(f)
+		if meta.get("cache_key") != cache_key:
+			console.print("[yellow]Cache key mismatch, rebuilding index.[/yellow]")
+			need_build = True
+	
+	if need_build:
+		chunks = get_chucked_docs(
+			data_dir=DATA_DIR,
+			# chunk_size=chunk_size,
+			# chunk_overlap=chunk_overlap,
+			chunks_path=chunks_path,
+			verbose=verbose,
+		)
+	
+		embeddings = build_index(
+			model=emb_model, 
+			chunks=chunks, 
+			batch_size=batch_size,
+			emb_path=emb_path
+		)
+
+		with open(meta_path, "w") as f:
+			cache_data = {
+					"cache_key": cache_key,
+					"embedding_model": model_id,
+					"chunk_size": chunk_size,
+					"chunk_overlap": chunk_overlap,
+					"n_chunks": len(chunks),
+				}
+			json.dump(cache_data, f, indent=2)
+	else:
+		print(f"[CACHED] embedding: {model_id}")
+		
+		with open(chunks_path, "rb") as f:
+			chunks = pickle.load(f)
+		
+		embeddings = np.load(emb_path)
+
+	return emb_model, chunks, embeddings
+
