@@ -539,13 +539,20 @@ def get_llm(model_id, load_in_4bit: bool=False):
 	console.print(f"[bold cyan][LOADING] {model_id}[/bold cyan]")
 	tokenizer = tfs.AutoTokenizer.from_pretrained(model_id, **llm_model_kw,)
 
-	if tokenizer.pad_token is None:
-		tokenizer.pad_token = tokenizer.eos_token
-
 	# safety net: never want drop the tail (question + Answer: cue).
 	# budget context explicitly
-	tokenizer.truncation_side = "left"
+	if hasattr(tokenizer, "truncation_side"):
+		tokenizer.truncation_side = "left"
 	
+	if tokenizer.pad_token is None:
+		tokenizer.pad_token = tokenizer.eos_token
+		tokenizer.pad_token_id = tokenizer.eos_token_id
+	
+	if hasattr(tokenizer, "padding_side") and tokenizer.padding_side is not None:
+		tokenizer.padding_side = "left"
+
+
+
 	if load_in_4bit:
 		llm_model_kw["quantization_config"] = tfs.BitsAndBytesConfig(
 			load_in_4bit=True,
