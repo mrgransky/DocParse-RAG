@@ -137,7 +137,7 @@ def get_file_metadata(path: str) -> dict:
         "source": str(p),
     }
 
-def load_and_process_documents(data_dir: str, verbose: bool = True) -> List[Dict[str, Any]]:
+def load_and_process_documents(data_dir: str, verbose: bool = False) -> List[Dict[str, Any]]:
     print(f"\n[LOADING & CHUNKING] {data_dir} via HierarchicalChunker...")
     chunks = []
 
@@ -307,7 +307,7 @@ def compute_cache_key(data_dir: str, embed_model: str, chunk_size: int, chunk_ov
 
 	return h.hexdigest()[:16]
 
-def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]]):
+def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]], batch_size: int):
 	texts = [c["text"] for c in chunks]
 	# embeddings = model.encode(
 	# 	texts,
@@ -317,7 +317,7 @@ def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]]):
 	# 	batch_size=32,
 	# ).astype(np.float32)
 
-	embeddings = _encode_(model=model, texts=texts)
+	embeddings = _encode_(model=model, texts=texts, batch_size=batch_size)
 	return embeddings
 
 def retrieve(
@@ -435,7 +435,7 @@ def print_retrieval_debug(retrieved, console, preview_chars=1500):
 			)
 		)
 
-def get_document_embedding(model_id, chunk_size, chunk_overlap, rebuild_index: bool=False):
+def get_document_embedding(model_id, chunk_size, chunk_overlap, batch_size, rebuild_index: bool=False, verbose: bool=False):
 	attention, dtype = get_model_kwargs()
 
 	emb_model = _load(
@@ -488,8 +488,9 @@ def get_document_embedding(model_id, chunk_size, chunk_overlap, rebuild_index: b
 			data_dir=DATA_DIR,
 			# chunk_size=chunk_size,
 			# chunk_overlap=chunk_overlap,
+			verbose=verbose,
 		)
-		embeddings = build_index(model=emb_model, chunks=chunks)
+		embeddings = build_index(model=emb_model, chunks=chunks, batch_size=batch_size)
 		
 		with open(chunks_path, "wb") as f:
 			pickle.dump(chunks, f)
@@ -554,6 +555,7 @@ def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
 	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen3.5-0.8B")
 	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
+	parser.add_argument("--batch_size", '-bs', type=int, default=16, help="batch size for embeddings")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
 	parser.add_argument("--top_k", type=int, default=3)
@@ -561,13 +563,16 @@ def main():
 	parser.add_argument("--max_new_tokens", type=int, default=512)
 	parser.add_argument("--load_in_4bit", action="store_true")
 	parser.add_argument("--rebuild_index", action="store_true")
+	parser.add_argument("--verbose", '-v', action="store_true")
 	args = parser.parse_args()
 
 	emb_model, chunks, embeddings = get_document_embedding(
 		model_id=args.embedding_model,
+		batch_size=args.batch_size,
 		chunk_size=args.chunk_size,
 		chunk_overlap=args.chunk_overlap,
 		rebuild_index=args.rebuild_index,
+		verbose=args.verbose,
 	)
 
 	tokenizer, llm = get_llm(
