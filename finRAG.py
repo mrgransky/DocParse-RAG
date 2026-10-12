@@ -546,7 +546,12 @@ def clean_response(text: str) -> str:
 	text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
 	return text.strip()
 
-def compute_cache_key(data_dir: str, embed_model: str, chunk_size: int, chunk_overlap: int) -> str:
+def compute_cache_key(
+	data_dir: str, 
+	embed_model: str, 
+	# chunk_size: int,
+	# chunk_overlap: int,
+) -> str:
 	h = hashlib.sha256()
 	h.update(embed_model.encode())
 	h.update(f"{chunk_size}|{chunk_overlap}".encode())
@@ -733,8 +738,8 @@ def get_document_embedding(
 	cache_key = compute_cache_key(
 		data_dir=DATA_DIR,
 		embed_model=model_id,
-		chunk_size=chunk_size,
-		chunk_overlap=chunk_overlap,
+		# chunk_size=chunk_size,
+		# chunk_overlap=chunk_overlap,
 	)
 	
 	index_dir = os.path.join(
