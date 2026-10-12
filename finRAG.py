@@ -456,17 +456,24 @@ def _encode_(
 	
 	return np.asarray(embeddings, dtype=np.float32)
 
-def print_retrieval_debug(retrieved, console, preview_chars=800):
+def print_retrieval_debug(retrieved, console, preview_chars=1500):
 	for rank, (doc, score) in enumerate(retrieved, start=1):
 		company = doc.get("company") or "?"
 		ryear = doc.get("report_year") or "?"
 		doc_type = doc.get("document_type") or "?"
 		console.print(
 			f"\n[bold cyan][Rank {rank}] score={score:.4f} | "
-			f"{company} | {ryear} | {doc_type}[/bold cyan]"
+			f"{company} | {ryear} | {doc_type} | "
+			f"{doc['source']} | page {doc['page'] + 1}[/bold cyan]"
 		)
-		console.print(f"  [dim]{os.path.basename(doc['source'])} | PDF page {doc['page'] + 1}[/dim]")
-		console.print(rich.panel.Panel(doc["text"][:preview_chars], title="Chunk preview", expand=False))
+		console.print(
+			rich.panel.Panel(
+				# doc["text"][:preview_chars],
+				doc["text"],
+				title="Chunk preview", 
+				expand=False
+			)
+		)
 
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
@@ -656,7 +663,7 @@ def main():
 				max_length=args.max_seq_len,
 			).to(llm.device)
 
-			with torch.no_grad(), torch.amp.autocast(
+			with torch.inference_mode(), torch.amp.autocast(
 				device_type=llm.device.type,
 				enabled=torch.cuda.is_available(),
 				dtype=torch.bfloat16,
@@ -697,7 +704,7 @@ def main():
 		
 		if "DATA_MISSING" in answer:
 			console.print(
-				"\n[bold yellow] requested figure was not found in the loaded documents. "
+				"\n[bold yellow]Requested query was not found in the loaded documents. "
 				"Try rephrasing the question or loading more documents.[/bold yellow]"
 			)
 
