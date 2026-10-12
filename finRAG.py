@@ -58,7 +58,7 @@ DATA_DIR = "Data"
 # """
 
 TEMPLATE__PROMPT = """\
-You are a financial analyst answering questions using excerpts from annual reports.
+You are a financial analyst specializing in the analysis of Annual Reports within the automotive sector.
 
 EVIDENCE AND ACCURACY RULES
 1. Answer using only the supplied context. Do not introduce outside facts.
@@ -477,7 +477,7 @@ def print_retrieval_debug(retrieved, console, preview_chars=1500):
 
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
-	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen2.5-0.5B-Instruct")
+	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen3.5-0.8B")
 	parser.add_argument("--embedding_model", "-emb", type=str, default="google/embeddinggemma-2",help="context embedder")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
@@ -490,6 +490,7 @@ def main():
 
 	attention, dtype = get_model_kwargs()
 
+	# Embedding:
 	emb_model = _load(
 		model_id=args.embedding_model,
 		attention=attention,
@@ -558,42 +559,43 @@ def main():
 				}
 			json.dump(cache_data, f, indent=2)
 	else:
-		print(f"[LOADING] cached index LLM: {args.embedding_model}")
+		print(f"[LOADING] cached index embedding: {args.embedding_model}")
 		
 		with open(chunks_path, "rb") as f:
 			chunks = pickle.load(f)
 		
 		embeddings = np.load(emb_path)
 
-	model_kwargs = {
+
+	# LLM
+	llm_model_kw = {
 		"trust_remote_code": True,
 		"device_map": "auto",
 		"token": os.getenv("HUGGINGFACE_TOKEN"),
 		"cache_dir": cache_directory.get(os.getenv("USER"), os.getcwd()),
+		"attn_implementation": attention,
+		"dtype": dtype,
 	}
 
 	console.print(f"[bold cyan]Loading LLM {args.llm_model}...[/bold cyan]")
-	tokenizer = tfs.AutoTokenizer.from_pretrained(args.llm_model, **model_kwargs,)
+	tokenizer = tfs.AutoTokenizer.from_pretrained(args.llm_model, **llm_model_kw,)
 
 	if tokenizer.pad_token is None:
 		tokenizer.pad_token = tokenizer.eos_token
 
-	# we never want to drop the tail (question + Answer: cue).
-	# We budget context explicitly, so this is a safety net only.
+	# safety net: never want drop the tail (question + Answer: cue).
+	# budget context explicitly
 	tokenizer.truncation_side = "left"
 	
 	if args.load_in_4bit:
-		from transformers import BitsAndBytesConfig
-		model_kwargs["quantization_config"] = BitsAndBytesConfig(
+		llm_model_kw["quantization_config"] = tfs.BitsAndBytesConfig(
 			load_in_4bit=True,
 			bnb_4bit_compute_dtype=torch.float16,
 			bnb_4bit_use_double_quant=True,
 			bnb_4bit_quant_type="nf4",
 		)
-	else:
-		model_kwargs["dtype"] = torch.float16 if torch.cuda.is_available() else torch.float32
 		
-	llm = tfs.AutoModelForCausalLM.from_pretrained(args.llm_model, **model_kwargs,)
+	llm = tfs.AutoModelForCausalLM.from_pretrained(args.llm_model, **llm_model_kw,)
 	llm.eval()
 	
 	# Chat loop
@@ -682,7 +684,7 @@ def main():
 			answer = clean_response(answer)
 
 		chat_history.append((query, answer))
-		console.print("\n[bold green]AI Bot:[/bold green]")
+		console.print("\n[bold green]AI:[/bold green]")
 		console.print(answer)
 
 		console.print(
