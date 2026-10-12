@@ -2,14 +2,14 @@
 Minimal automatic evaluation for finRAG.
 
 Run from the project folder (so DATA_DIR="Data" resolves):
-    python eval_finrag.py --retrieval_only        # fast: retrieval check only, no LLM
-    python eval_finrag.py                         # full: retrieval + answer + refusal + citations
+		python eval_finrag.py --retrieval_only        # fast: retrieval check only, no LLM
+		python eval_finrag.py                         # full: retrieval + answer + refusal + citations
 
 Metrics
-  retrieval_hit : every required (company, year) appears in the top-k retrieved chunks
-  numeric_ok    : the expected figure(s) appear in the answer (commas/currency stripped)
-  refusal_ok    : DATA_MISSING returned iff the case is a distractor (expect_missing)
-  citation_ok   : every [file.pdf, p. N] cited in the answer exists in the context the LLM saw
+	retrieval_hit : every required (company, year) appears in the top-k retrieved chunks
+	numeric_ok    : the expected figure(s) appear in the answer (commas/currency stripped)
+	refusal_ok    : DATA_MISSING returned iff the case is a distractor (expect_missing)
+	citation_ok   : every [file.pdf, p. N] cited in the answer exists in the context the LLM saw
 """
 import argparse
 import json
@@ -20,7 +20,7 @@ import torch
 import rich
 import rich.table
 
-import finRAG as F
+import finrag as F
 
 # ----------------------------------------------------------------------------
 # Test set. EDIT THESE: the expected figures below were written from memory of
@@ -105,6 +105,9 @@ def numeric_ok(answer: str, expect) -> bool:
 	a = norm(answer)
 	return all(any(norm(v) in a for v in group) for group in expect)
 
+def figure_in_context(retrieved, expect) -> bool:
+	text = norm(" ".join(d["text"] for d, _ in retrieved))
+	return all(any(norm(v) in text for v in group) for group in expect)
 
 def citation_ok(answer: str, kept) -> "bool | None":
 	cites = CITE_RE.findall(answer)
@@ -190,6 +193,12 @@ def main():
 		r = {"id": case["id"], "type": case["type"], "question": case["question"]}
 		r["retrieval_hit"] = retrieval_hit(retrieved, case["need"]) if case.get("need") else None
 
+		r["figure_in_retrieved"] = (
+			figure_in_context(retrieved, case["expect"]) if case.get("expect") else None
+		)
+
+
+
 		if args.retrieval_only:
 			r.update(numeric_ok=None, refusal_ok=None, citation_ok=None, answer="")
 		else:
@@ -221,7 +230,7 @@ def main():
 	F.console.print(table)
 
 	summary = {}
-	for key in ("retrieval_hit", "numeric_ok", "refusal_ok", "citation_ok"):
+	for key in ("retrieval_hit", "figure_in_retrieved", "numeric_ok", "refusal_ok", "citation_ok"):
 		val, n = rate([r[key] for r in rows])
 		summary[key] = None if val is None else round(val, 3)
 		if val is not None:
