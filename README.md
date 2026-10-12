@@ -1,6 +1,20 @@
 # finRAG
 My solution for Financial RAG
 
+
+## Task:
+---
+Analysis of Annual Reports within the automotive sector
+
+Extracting key ﬁnancial metrics such as revenue, EBITDA, growth numbers, and 
+conducting comparative analyses across diﬀerent car companies, 
+as well as comparing them to other sectors.
+
+## Proposed Solution:
+
+AI-based RAG pipeline to extract and analyze key financial metrics from annual reports of car companies.
+The pipeline will be able to answer questions about the financial performance of car companies, e.g., Tesla, Ford, BMW, etc.
+
 ## Test Cases for RAG Pipeline
 ---
 
@@ -55,7 +69,6 @@ How did the central bank's 0.5% interest rate hike affect Ford's F-150 Lightning
 
 Did the new climate bill passed by Congress impact BMW's NEUE KLASSE platform?
 
-
 What were Tesla's exact revenues from the 'Energy generation and storage' segment in 2021, 2022, and 2023?
 
 What is the target EBIT margin for BMW's Automotive segment?
@@ -69,3 +82,11 @@ What raw materials is Ford dependent on for EV batteries?
 Does Tesla face the same supply chain risks for those materials?
 
 What about BMW?
+
+## Required Packages:
+- Transformers
+- Torch
+- Sentence-transformers
+- Docling
+- Rich
+

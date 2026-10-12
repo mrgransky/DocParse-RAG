@@ -10,8 +10,6 @@ import pathlib
 import rich
 import rich.panel
 import rich.prompt
-# from pypdf import PdfReader
-import pypdf
 from typing import Optional, List, Dict, Any, Tuple
 from sentence_transformers import SentenceTransformer
 import numpy as np
