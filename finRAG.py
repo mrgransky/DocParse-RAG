@@ -649,8 +649,8 @@ def main():
 			prompt_msgs.append({"role": "assistant", "content": a})
 		prompt_msgs.append({"role": "user", "content": query})
 
-		if args.verbose:
-			print(json.dumps(probe_msgs, indent=2, ensure_ascii=False))
+		# if args.verbose:
+		# 	print(json.dumps(probe_msgs, indent=2, ensure_ascii=False))
 
 		with console.status("[bold cyan]Generating...[/bold cyan]"):
 			prompt_text = tokenizer.apply_chat_template(
