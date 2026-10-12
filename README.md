@@ -89,8 +89,8 @@ $ pip install -r requirements.txt
 
 ## how to run (default embedding + LLM models) [laptop with small GPU]:
 
-$ python finRAG.py 
+$ python finrag.py 
 
 ## Run with larger embedding + LLM models [HPC with powerful GPU]:
 
-$ python finRAG.py -emb "Qwen/Qwen3-Embedding-8B" -llm "Qwen/Qwen3.8-27B" -v
+$ python finrag.py -emb "Qwen/Qwen3-Embedding-8B" -llm "Qwen/Qwen3.8-27B" -v
