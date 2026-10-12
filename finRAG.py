@@ -368,7 +368,7 @@ def build_context_within_budget(
 		doc_page = doc.get("page") or "?"
 		header = (
 			f"[Source: {os.path.basename(doc['source'])} | Company: {company} | "
-			f"Report year: {ryear} | page {doc_page}]\n"
+			f"Report year: {ryear} | Pg. {doc_page}]\n"
 		)
 		block = header + doc["text"] + "\n\n"
 		block_tokens = len(tokenizer.encode(block, add_special_tokens=False))
@@ -386,6 +386,7 @@ def build_context_within_budget(
 		parts.append(block)
 		kept.append(doc)
 		used += block_tokens
+	
 	return "".join(parts), kept
 
 def _encode_(
@@ -504,7 +505,6 @@ def get_document_embedding(
 			emb_path=emb_path
 		)
 
-		
 		with open(meta_path, "w") as f:
 			cache_data = {
 					"cache_key": cache_key,
@@ -550,8 +550,6 @@ def get_llm(model_id, load_in_4bit: bool=False):
 	
 	if hasattr(tokenizer, "padding_side") and tokenizer.padding_side is not None:
 		tokenizer.padding_side = "left"
-
-
 
 	if load_in_4bit:
 		llm_model_kw["quantization_config"] = tfs.BitsAndBytesConfig(
@@ -706,11 +704,11 @@ def main():
 		# 		)
 		# 	)
 		
-		if "DATA_MISSING" in answer:
-			console.print(
-				"\n[bold yellow]Requested query was not found in the loaded documents. "
-				"Try rephrasing the question or loading more documents.[/bold yellow]"
-			)
+		# if "DATA_MISSING" in answer:
+		# 	console.print(
+		# 		"\n[bold yellow]Requested query was not found in the loaded documents. "
+		# 		"Try rephrasing the question or loading more documents.[/bold yellow]"
+		# 	)
 
 if __name__ == "__main__":
 	main()
