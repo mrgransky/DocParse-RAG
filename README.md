@@ -81,6 +81,8 @@ Does Tesla face the same supply chain risks for those materials?
 
 What about BMW?
 
+What was BMW's profit before tax in 2021?
+
 ## Required Packages:
 
 $ conda create -n py312 python=3.12 -y

@@ -32,10 +32,10 @@ import finrag as F
 # ----------------------------------------------------------------------------
 CASES = [
 	{
-		"id": "bmw_rev_2023", "type": "single-fact",
-		"question": "What was BMW's total revenue in 2023?",
-		"need": [("BMW", [2023])],
-		"expect": [["155498", "155.5"]],
+		"id": "bmw_pbt_2021", "type": "single-fact",
+		"question": "What was BMW's profit before tax in 2021?",
+		"need": [("BMW", [2021])],
+		"expect": [["16060"]],
 	},
 	{
 		"id": "tesla_rev_2023", "type": "single-fact",
