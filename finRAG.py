@@ -520,7 +520,7 @@ def get_document_embedding(
 				}
 			json.dump(cache_data, f, indent=2)
 	else:
-		print(f"[LOADING] cached index embedding: {model_id}")
+		print(f"[CACHED] embedding: {model_id}")
 		
 		with open(chunks_path, "rb") as f:
 			chunks = pickle.load(f)
@@ -576,7 +576,7 @@ def main():
 	parser.add_argument("--batch_size", '-bs', type=int, default=8, help="batch size for embeddings")
 	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
 	parser.add_argument("--chunk_overlap", type=int, default=120)
-	parser.add_argument("--top_k", type=int, default=3)
+	parser.add_argument("--top_k", type=int, default=8)
 	parser.add_argument("--max_seq_len", type=int, default=8192, help="LLM context window (tokens)")
 	parser.add_argument("--max_new_tokens", type=int, default=512)
 	parser.add_argument("--load_in_4bit", action="store_true")
@@ -606,7 +606,7 @@ def main():
 			f"LLM:       {args.llm_model}\n"
 			f"Embedding: {args.embedding_model}\n"
 			f"Chunks:    {len(chunks)}\n"
-			f"Top-k:     {args.top_k}\n"
+			f"Top-{args.top_k} Chunks for Retrieval\n"
 			f"Type 'exit' to quit."
 		)
 	)
