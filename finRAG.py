@@ -312,7 +312,7 @@ def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]], batch_
 	# 	normalize_embeddings=True,
 	# 	batch_size=32,
 	# ).astype(np.float32)
-
+	print(f"[ENCODING] {len(texts)} chunks with batch size {batch_size}...")
 	embeddings = _encode_(model=model, texts=texts, batch_size=batch_size)
 	np.save(emb_path, embeddings)
 
@@ -481,7 +481,10 @@ def get_document_embedding(
 	chunks_path = os.path.join(index_dir, "chunks.pkl")
 	emb_path = os.path.join(index_dir, "embeddings.npy")
 	meta_path = os.path.join(index_dir, "meta.json")
-	need_build = rebuild_index or not (os.path.exists(chunks_path) and os.path.exists(emb_path))
+	need_build = (
+		rebuild_index 
+		or not (os.path.exists(chunks_path) and os.path.exists(emb_path))
+	)
 
 	if not need_build:
 		with open(meta_path) as f:
