@@ -710,8 +710,8 @@ def debug_retrieval(retrieved):
 
 def get_document_embedding(
 	model_id: str,
-	chunk_size: int,       # Kept for compatibility / embedding metadata
-	chunk_overlap: int,    # Kept for compatibility / embedding metadata
+	# chunk_size: int,
+	# chunk_overlap: int,
 	batch_size: int,
 	rebuild_index: bool = False, 
 	verbose: bool = False
@@ -720,8 +720,8 @@ def get_document_embedding(
 	attention, dtype = get_model_kwargs()
 	user_cache_dir = cache_directory.get(os.getenv("USER"), os.getcwd())
 
-	# ========== 1. GLOBAL / SHARED CHUNK CACHE ==========
-	# Create a deterministic key for the DATA directory (independent of embedding model)
+	# shared chunk among all embedding models
+	# deterministic key for the DATA directory (independent of embedding model)
 	data_hash = hashlib.sha256(os.path.abspath(DATA_DIR).encode("utf-8")).hexdigest()[:10]
 	shared_chunks_dir = os.path.join(user_cache_dir, "structural_chunks")
 	os.makedirs(shared_chunks_dir, exist_ok=True)
@@ -729,7 +729,7 @@ def get_document_embedding(
 	# The chunks file is saved globally based ONLY on the source data directory
 	shared_chunks_path = os.path.join(shared_chunks_dir, f"chunks_data_{data_hash}.pkl")
 
-	# ========== 2. MODEL-SPECIFIC EMBEDDING INDEX ==========
+	# model specific cache key
 	cache_key = compute_cache_key(
 		data_dir=DATA_DIR,
 		embed_model=model_id,
@@ -757,18 +757,15 @@ def get_document_embedding(
 				print("[WARN] Cache key mismatch, rebuilding embeddings.")
 			need_embedding_rebuild = True
 
-	# ========== 3. LOAD OR GENERATE STRUCTURAL CHUNKS ==========
-	# This will load instantly (0.1 seconds) if any other model has already chunked this data_dir
 	chunks = get_chucked_docs(
 		data_dir=DATA_DIR,
 		chunks_path=shared_chunks_path, # Passed to the shared cache location
 		verbose=verbose,
 	)
 
-	# ========== 4. LOAD OR GENERATE EMBEDDINGS ==========
 	if need_embedding_rebuild:
 		if verbose:
-			print(f"\n[EMBEDDING] Generating embeddings using model: {model_id}...")
+			print(f"\n[EMBEDDING] Generating embeddings {model_id}...")
 		
 		# Load the model only when actual embedding generation is required
 		emb_model = _load(
@@ -799,8 +796,7 @@ def get_document_embedding(
 	else:
 		if verbose:
 			print(f"[CACHED] Embedding index found for: {model_id}")
-		
-		# Load model on-demand for retrieval, even if index is cached
+
 		emb_model = _load(
 			model_id=model_id,
 			attention=attention,
@@ -808,6 +804,7 @@ def get_document_embedding(
 			cache_folder=user_cache_dir,
 			token=os.getenv("HUGGINGFACE_TOKEN"),
 		)
+
 		embeddings = np.load(emb_path)
 
 	return emb_model, chunks, embeddings
@@ -869,8 +866,8 @@ def main():
 
 	emb_model, chunks, embeddings = get_document_embedding(
 		model_id=args.embedding_model,
-		batch_size=args.batch_size,
-		chunk_size=args.chunk_size,
+		# batch_size=args.batch_size,
+		# chunk_size=args.chunk_size,
 		chunk_overlap=args.chunk_overlap,
 		rebuild_index=args.rebuild_index,
 		verbose=args.verbose,
