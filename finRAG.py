@@ -415,23 +415,23 @@ def _encode_(
 	print(type(encoded_embeddings), encoded_embeddings.shape)
 	return encoded_embeddings
 
-def print_retrieval_debug(retrieved, console, preview_chars=1500):
+def debug_retrieval(retrieved):
 	for rank, (doc, score) in enumerate(retrieved, start=1):
 		company = doc.get("company") or "?"
 		ryear = doc.get("report_year") or "?"
 		doc_type = doc.get("document_type") or "?"
 		doc_page = doc.get("page") or "?"
-		console.print(
+		ranked_chunk_msg = (
 			f"\n[bold cyan][Rank {rank}] score={score:.4f} | "
 			f"{company} | {ryear} | {doc_type} | "
 			f"{doc['source']} | page {doc_page}[/bold cyan]"
 		)
+		console.print(ranked_chunk_msg)
 		console.print(
 			rich.panel.Panel(
-				# doc["text"][:preview_chars],
 				doc["text"],
-				title="Chunk preview", 
-				expand=False
+				title="Chunk preview",
+				# expand=False
 			)
 		)
 
@@ -452,17 +452,6 @@ def get_document_embedding(
 		cache_folder=cache_directory.get(os.getenv("USER"), os.getcwd()),
 		token=os.getenv("HUGGINGFACE_TOKEN"),
 	)
-	# emb_max_tokens = getattr(emb_model, "max_seq_length", None)
-
-	# # ~4 chars/token heuristic (conservative)
-	# if emb_max_tokens is not None:
-	# 	max_chars = emb_max_tokens * 4
-	# 	if chunk_size > max_chars:
-	# 		console.print(
-	# 			f"[yellow]chunk_size={chunk_size} exceeds ~{max_chars} chars "
-	# 			f"({emb_max_tokens} tokens) for {model_id}. "
-	# 			f"Tail of every chunk will be invisible to the retriever.[/yellow]"
-	# 		)
 
 	cache_key = compute_cache_key(
 		data_dir=DATA_DIR,
@@ -618,9 +607,10 @@ def main():
 				query=query, 
 				k=args.top_k
 			)
-			print_retrieval_debug(retrieved, console)
+			debug_retrieval(retrieved)
 
-		# overhead probe (must mirror the REAL message structure)
+		# overhead probe 
+		# mirror REAL message structure
 		probe_msgs = [{"role": "system", "content": TEMPLATE__PROMPT.format(context="")}]
 		for u, a in chat_history[-MAX_HISTORY_TURNS:]:
 			probe_msgs.append({"role": "user", "content": u})
@@ -637,13 +627,15 @@ def main():
 
 		context, kept = build_context_within_budget(retrieved, tokenizer, max_context_tokens)
 
-		# Real prompt: system (instructions + current context) + history + current query ---
+		# Real prompt: 
+		# system (instructions + current context) + history + current query
 		system_prompt = TEMPLATE__PROMPT.format(context=context)
 		prompt_msgs = [{"role": "system", "content": system_prompt}]
 		for u, a in chat_history[-MAX_HISTORY_TURNS:]:
 			prompt_msgs.append({"role": "user", "content": u})
 			prompt_msgs.append({"role": "assistant", "content": a})
 		prompt_msgs.append({"role": "user", "content": query})
+		print(prompt_msgs)
 
 		with console.status("[bold cyan]Generating...[/bold cyan]"):
 			prompt_text = tokenizer.apply_chat_template(
