@@ -475,6 +475,122 @@ def print_retrieval_debug(retrieved, console, preview_chars=1500):
 			)
 		)
 
+def get_document_embedding(model_id, chunk_size, chunk_overlap, rebuild_index: bool=False):
+	attention, dtype = get_model_kwargs()
+
+	# Embedding:
+	emb_model = _load(
+		model_id=model_id,
+		attention=attention,
+		dtype=dtype,
+		cache_folder=cache_directory.get(os.getenv("USER"), os.getcwd()),
+		token=os.getenv("HUGGINGFACE_TOKEN"),
+	)
+	emb_max_tokens = getattr(emb_model, "max_seq_length", None)
+
+	# ~4 chars/token heuristic (conservative)
+	if emb_max_tokens is not None:
+		max_chars = emb_max_tokens * 4
+		if chunk_size > max_chars:
+			console.print(
+				f"[yellow]chunk_size={chunk_size} exceeds ~{max_chars} chars "
+				f"({emb_max_tokens} tokens) for {model_id}. "
+				f"Tail of every chunk will be invisible to the retriever.[/yellow]"
+			)
+
+	cache_key = compute_cache_key(
+		data_dir=DATA_DIR,
+		embed_model=model_id,
+		chunk_size=chunk_size,
+		chunk_overlap=chunk_overlap,
+	)
+	
+	index_dir = os.path.join(
+		cache_directory.get(os.getenv("USER"), os.getcwd()), 
+		f"index_{model_id.replace('/', '_')}_{cache_key}"
+	)
+	
+	os.makedirs(index_dir, exist_ok=True)
+
+	chunks_path = os.path.join(index_dir, "chunks.pkl")
+	emb_path = os.path.join(index_dir, "embeddings.npy")
+	meta_path = os.path.join(index_dir, "meta.json")
+	need_build = rebuild_index or not (os.path.exists(chunks_path) and os.path.exists(emb_path))
+
+	if not need_build:
+		with open(meta_path) as f:
+			meta = json.load(f)
+		if meta.get("cache_key") != cache_key:
+			console.print("[yellow]Cache key mismatch, rebuilding index.[/yellow]")
+			need_build = True
+	
+	if need_build:
+		chunks = load_and_process_documents(
+			data_dir=DATA_DIR,
+			chunk_size=chunk_size,
+			chunk_overlap=chunk_overlap,
+		)
+		embeddings = build_index(model=emb_model, chunks=chunks)
+		
+		with open(chunks_path, "wb") as f:
+			pickle.dump(chunks, f)
+		
+		np.save(emb_path, embeddings)
+		
+		with open(meta_path, "w") as f:
+			cache_data = {
+					"cache_key": cache_key,
+					"embedding_model": model_id,
+					"chunk_size": chunk_size,
+					"chunk_overlap": chunk_overlap,
+					"n_chunks": len(chunks),
+				}
+			json.dump(cache_data, f, indent=2)
+	else:
+		print(f"[LOADING] cached index embedding: {model_id}")
+		
+		with open(chunks_path, "rb") as f:
+			chunks = pickle.load(f)
+		
+		embeddings = np.load(emb_path)
+
+	return emb_model, chunks, embeddings
+
+def get_llm(model_id, load_in_4bit: bool=False):
+	attention, dtype = get_model_kwargs()
+
+	llm_model_kw = {
+		"trust_remote_code": True,
+		"device_map": "auto",
+		"token": os.getenv("HUGGINGFACE_TOKEN"),
+		"cache_dir": cache_directory.get(os.getenv("USER"), os.getcwd()),
+		"attn_implementation": attention,
+		"dtype": dtype,
+	}
+
+	console.print(f"[bold cyan]Loading LLM {model_id}...[/bold cyan]")
+	tokenizer = tfs.AutoTokenizer.from_pretrained(model_id, **llm_model_kw,)
+
+	if tokenizer.pad_token is None:
+		tokenizer.pad_token = tokenizer.eos_token
+
+	# safety net: never want drop the tail (question + Answer: cue).
+	# budget context explicitly
+	tokenizer.truncation_side = "left"
+	
+	if load_in_4bit:
+		llm_model_kw["quantization_config"] = tfs.BitsAndBytesConfig(
+			load_in_4bit=True,
+			bnb_4bit_compute_dtype=torch.float16,
+			bnb_4bit_use_double_quant=True,
+			bnb_4bit_quant_type="nf4",
+		)
+		
+	llm = tfs.AutoModelForCausalLM.from_pretrained(model_id, **llm_model_kw,)
+	llm.eval()
+
+	return tokenizer, llm
+
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
 	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen3.5-0.8B")
@@ -488,115 +604,17 @@ def main():
 	parser.add_argument("--rebuild_index", action="store_true")
 	args = parser.parse_args()
 
-	attention, dtype = get_model_kwargs()
-
-	# Embedding:
-	emb_model = _load(
+	emb_model, chunks, embeddings = get_document_embedding(
 		model_id=args.embedding_model,
-		attention=attention,
-		dtype=dtype,
-		cache_folder=cache_directory.get(os.getenv("USER"), os.getcwd()),
-		token=os.getenv("HUGGINGFACE_TOKEN"),
-	)
-	emb_max_tokens = getattr(emb_model, "max_seq_length", None)
-
-	# ~4 chars/token heuristic (conservative)
-	if emb_max_tokens is not None:
-		max_chars = emb_max_tokens * 4
-		if args.chunk_size > max_chars:
-			console.print(
-				f"[yellow]chunk_size={args.chunk_size} exceeds ~{max_chars} chars "
-				f"({emb_max_tokens} tokens) for {args.embedding_model}. "
-				f"Tail of every chunk will be invisible to the retriever.[/yellow]"
-			)
-
-	cache_key = compute_cache_key(
-		data_dir=DATA_DIR,
-		embed_model=args.embedding_model,
-		chunk_size=args.chunk_size, 
+		chunk_size=args.chunk_size,
 		chunk_overlap=args.chunk_overlap,
+		rebuild_index=args.rebuild_index,
 	)
-	
-	index_dir = os.path.join(
-		cache_directory.get(os.getenv("USER"), os.getcwd()), 
-		f"index_{args.embedding_model.replace('/', '_')}_{cache_key}"
+
+	tokenizer, llm = get_llm(
+		model_id=args.llm_model,
+		load_in_4bit=args.load_in_4bit
 	)
-	
-	os.makedirs(index_dir, exist_ok=True)
-
-	chunks_path = os.path.join(index_dir, "chunks.pkl")
-	emb_path = os.path.join(index_dir, "embeddings.npy")
-	meta_path = os.path.join(index_dir, "meta.json")
-	need_build = args.rebuild_index or not (os.path.exists(chunks_path) and os.path.exists(emb_path))
-
-	if not need_build:
-		with open(meta_path) as f:
-			meta = json.load(f)
-		if meta.get("cache_key") != cache_key:
-			console.print("[yellow]Cache key mismatch, rebuilding index.[/yellow]")
-			need_build = True
-	
-	if need_build:
-		chunks = load_and_process_documents(
-			data_dir=DATA_DIR,
-			chunk_size=args.chunk_size,
-			chunk_overlap=args.chunk_overlap,
-		)
-		embeddings = build_index(model=emb_model, chunks=chunks)
-		
-		with open(chunks_path, "wb") as f:
-			pickle.dump(chunks, f)
-		
-		np.save(emb_path, embeddings)
-		
-		with open(meta_path, "w") as f:
-			cache_data = {
-					"cache_key": cache_key,
-					"embedding_model": args.embedding_model,
-					"chunk_size": args.chunk_size,
-					"chunk_overlap": args.chunk_overlap,
-					"n_chunks": len(chunks),
-				}
-			json.dump(cache_data, f, indent=2)
-	else:
-		print(f"[LOADING] cached index embedding: {args.embedding_model}")
-		
-		with open(chunks_path, "rb") as f:
-			chunks = pickle.load(f)
-		
-		embeddings = np.load(emb_path)
-
-
-	# LLM
-	llm_model_kw = {
-		"trust_remote_code": True,
-		"device_map": "auto",
-		"token": os.getenv("HUGGINGFACE_TOKEN"),
-		"cache_dir": cache_directory.get(os.getenv("USER"), os.getcwd()),
-		"attn_implementation": attention,
-		"dtype": dtype,
-	}
-
-	console.print(f"[bold cyan]Loading LLM {args.llm_model}...[/bold cyan]")
-	tokenizer = tfs.AutoTokenizer.from_pretrained(args.llm_model, **llm_model_kw,)
-
-	if tokenizer.pad_token is None:
-		tokenizer.pad_token = tokenizer.eos_token
-
-	# safety net: never want drop the tail (question + Answer: cue).
-	# budget context explicitly
-	tokenizer.truncation_side = "left"
-	
-	if args.load_in_4bit:
-		llm_model_kw["quantization_config"] = tfs.BitsAndBytesConfig(
-			load_in_4bit=True,
-			bnb_4bit_compute_dtype=torch.float16,
-			bnb_4bit_use_double_quant=True,
-			bnb_4bit_quant_type="nf4",
-		)
-		
-	llm = tfs.AutoModelForCausalLM.from_pretrained(args.llm_model, **llm_model_kw,)
-	llm.eval()
 	
 	# Chat loop
 	chat_history: List[Tuple[str, str]] = []
@@ -619,8 +637,8 @@ def main():
 			retrieved = retrieve(
 				model=emb_model,
 				embeddings=embeddings,
-				query=query, 
 				chunks=chunks,
+				query=query, 
 				k=args.top_k
 			)
 			print_retrieval_debug(retrieved, console)
