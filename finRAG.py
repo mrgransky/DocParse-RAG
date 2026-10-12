@@ -554,7 +554,7 @@ def compute_cache_key(
 ) -> str:
 	h = hashlib.sha256()
 	h.update(embed_model.encode())
-	h.update(f"{chunk_size}|{chunk_overlap}".encode())
+	# h.update(f"{chunk_size}|{chunk_overlap}".encode())
 
 	for root, _, files in os.walk(data_dir):
 		for f in sorted(files):
