@@ -69,7 +69,9 @@ EVIDENCE AND ACCURACY RULES
 5. Distinguish among revenue, operating income, net income, and adjusted EBIT.
 	 Do not treat these metrics as interchangeable.
 6. Distinguish consolidated figures from figures attributable to a parent company
-	 or its shareholders when the context makes that distinction.
+	 or its shareholders when the context makes that distinction. Each context block
+	 names its reporting entity when known; if the entity is a subsidiary rather than
+	 the group, say so explicitly and do not present its figures as group-wide results.
 7. Cite supporting evidence using the source filename and page number provided
 	 in the context. For example: [Ford_Annual_Report_2023.pdf, p. 54].
 8. For comparisons, address each company and reporting period separately.
@@ -82,7 +84,7 @@ EVIDENCE AND ACCURACY RULES
 		If calculations are requested, show the formula and identify the input figures.
 11. If the context provides no evidence for ANY part of the question, respond
 		with exactly: DATA_MISSING
-
+		
 CONTEXT:
 {context}
 """
@@ -90,7 +92,11 @@ CONTEXT:
 MAX_HISTORY_TURNS = 5
 
 COMPANY_MAP = {"bmw": "BMW", "ford": "Ford", "tesla": "Tesla"}
-
+ENTITY_MAP = {
+	"BMW_Annual_Report_2021.pdf": "BMW Group",
+	"BMW_Annual_Report_2022.pdf": "BMW Finance N.V. (subsidiary)",
+	"BMW_Annual_Report_2023.pdf": "BMW Finance N.V. (subsidiary)",
+}
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -633,8 +639,10 @@ def build_context_within_budget(
 		company = doc.get("company") or "unknown"
 		ryear = doc.get("report_year") or "?"
 		doc_page = doc.get("page") or "?"
+		entity = doc.get("entity")
+		entity_part = f" | Entity: {entity}" if entity else ""
 		header = (
-			f"[Source: {os.path.basename(doc['source'])} | Company: {company} | "
+			f"[Source: {os.path.basename(doc['source'])} | Company: {company}{entity_part} | "
 			f"Report year: {ryear} | Pg. {doc_page}]\n"
 		)
 		block = header + doc["text"] + "\n\n"
@@ -765,6 +773,9 @@ def get_document_embedding(
 		chunks_path=shared_chunks_path, # Passed to the shared cache location
 		verbose=verbose,
 	)
+
+	for c in chunks:
+		c["entity"] = ENTITY_MAP.get(os.path.basename(c["source"]))
 
 	if need_embedding_rebuild:
 		if verbose:
