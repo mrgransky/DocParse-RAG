@@ -324,7 +324,7 @@ def retrieve(
 	query: str,
 	chunks: List[Dict[str, Any]],
 	k: int,
-	verbose: bool = True,
+	verbose: bool,
 ):
 	# q = model.encode(
 	# 	[query], 
@@ -336,11 +336,6 @@ def retrieve(
 	# scores = embeddings @ q  # cosine sim (both normalized)
 	scores = (embeddings @ q.T).squeeze(axis=1) # (3092, 1024) @ (1024, 1) -> (3092,)
 	
-	k = min(k, len(scores))
-	print(type(embeddings), embeddings.shape)
-	print(type(q), q.shape)
-	print(type(scores), scores.shape)
-	print(k)
 	
 	# sort only the k we keep
 	top = np.argpartition(-scores, k - 1)[:k]
@@ -349,6 +344,13 @@ def retrieve(
 	results = [(chunks[i], float(scores[i])) for i in top]
 
 	if verbose:
+		k = min(k, len(scores))
+		print(type(embeddings), embeddings.shape)
+		print(type(q), q.shape)
+		print(type(scores), scores.shape)
+		print(k)
+		print(type(top), top.shape)
+		print(type(results), len(results))
 		debug_retrieval(retrieved=results)
 
 	return results
@@ -534,7 +536,7 @@ def get_llm(model_id, load_in_4bit: bool=False):
 		"dtype": dtype,
 	}
 
-	console.print(f"[bold cyan]Loading LLM {model_id}...[/bold cyan]")
+	console.print(f"[bold cyan][LOADING] {model_id}[/bold cyan]")
 	tokenizer = tfs.AutoTokenizer.from_pretrained(model_id, **llm_model_kw,)
 
 	if tokenizer.pad_token is None:
@@ -639,7 +641,9 @@ def main():
 			prompt_msgs.append({"role": "user", "content": u})
 			prompt_msgs.append({"role": "assistant", "content": a})
 		prompt_msgs.append({"role": "user", "content": query})
-		print(json.dumps(probe_msgs, indent=2, ensure_ascii=False))
+
+		if args.verbose:
+			print(json.dumps(probe_msgs, indent=2, ensure_ascii=False))
 
 		with console.status("[bold cyan]Generating...[/bold cyan]"):
 			prompt_text = tokenizer.apply_chat_template(
