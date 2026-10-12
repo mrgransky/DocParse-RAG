@@ -280,7 +280,7 @@ converter = DocumentConverter(
 )
 
 
-def load_pdfs(data_dir: str, verbose: bool = False):
+def load_pdfs(data_dir: str, verbose: bool = True):
 	docs = []
 	for root, _, files in os.walk(data_dir):
 		for f in sorted(files):
@@ -479,7 +479,7 @@ def build_context_within_budget(
 		ryear = doc.get("report_year") or "?"
 		header = (
 			f"[Source: {os.path.basename(doc['source'])} | Company: {company} | "
-			f"Report year: {ryear} | PDF page {doc['page'] + 1}]\n"
+			f"Report year: {ryear} | page {doc.get("page")}]\n"
 		)
 		block = header + doc["text"] + "\n\n"
 		block_tokens = len(tokenizer.encode(block, add_special_tokens=False))
