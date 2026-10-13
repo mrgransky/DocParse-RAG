@@ -494,7 +494,15 @@ def retrieve(
 	# 	convert_to_numpy=True, 
 	# 	normalize_embeddings=True
 	# )[0].astype(np.float32)
-	q = _encode_(model=model, texts=[query], batch_size=1, show_progress_bar=False)
+
+	QUERY_PROMPT = (
+		"Instruct: Given a financial question, retrieve annual-report "
+		"passages that contain the answer\nQuery:"
+	)
+
+	q = _encode_(model, [query], prompt=QUERY_PROMPT, show_progress_bar=False)
+
+	# q = _encode_(model=model, texts=[query], batch_size=1, show_progress_bar=False)
 
 	# scores = embeddings @ q  # cosine sim (both normalized)
 	scores = (embeddings @ q.T).squeeze(axis=1) # (3092, 1024) @ (1024, 1) -> (3092,)
