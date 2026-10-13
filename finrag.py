@@ -496,8 +496,8 @@ def retrieve(
 	# )[0].astype(np.float32)
 
 	QUERY_PROMPT = (
-		"Instruct: Given a financial question, retrieve annual-report "
-		"passages that contain the answer\nQuery:"
+		"Instruct: Given a web search query, retrieve relevant passages "
+		"that answer the query\nQuery:"
 	)
 
 	q = _encode_(model, [query], prompt=QUERY_PROMPT, show_progress_bar=False)
