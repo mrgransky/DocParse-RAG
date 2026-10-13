@@ -44,19 +44,10 @@ flowchart LR
 - No arithmetic unless asked (then show the formula and inputs).
 - If the context has no relevant evidence, reply exactly `DATA_MISSING`.
 
-## Repository layout
+## Dataset
 
-```
-.
-├── Data/
-│   ├── BMW/    BMW_Annual_Report_{2021,2022,2023}.pdf
-│   ├── Ford/   Ford_Annual_Report_{2021,2022,2023}.pdf
-│   ├── Tesla/  Tesla_Annual_Report_{2022,2023}.pdf
-│   ├── news.pdf, news.docx          # distractor / out-of-scope material
-├── finrag.py                        # the whole pipeline + chat loop
-├── instructions.pdf                 # task description
-├── requirements.txt
-└── README.md
+```bash
+bash download_auto_financials.sh /path/to/desired_directory
 ```
 
 ## Setup
