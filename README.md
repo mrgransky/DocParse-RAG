@@ -22,7 +22,7 @@ What was BMW's total revenue in 2023?
 
 How much revenue did Tesla generate in 2023?
 
-What was Ford's revenue for the year 2020?
+Ford's revenue 2020
 
 Can you provide the revenue ﬁgures for BMW in 2017?
 

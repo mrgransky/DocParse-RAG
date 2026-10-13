@@ -490,11 +490,12 @@ QUERY_PROMPT = (
   "that answer the query\nQuery:"
 )
 
+def _informative_len(chunk: Dict[str, Any]) -> int:
+	body = _LINK_RE.sub(" ", chunk.get("raw_text") or "").strip()
+	return len(body)
 
 def _is_informative(chunk: Dict[str, Any]) -> bool:
-	body = _LINK_RE.sub(" ", chunk.get("raw_text") or "").strip()
-	return len(body) >= MIN_CHUNK_CHARS
-
+	return _informative_len(chunk) >= MIN_CHUNK_CHARS
 
 def retrieve(
 	model: SentenceTransformer,
@@ -529,7 +530,9 @@ def retrieve(
 	# top = top[np.argsort(-scores[top])]
 
 
-	# rank ALL chunks, then keep the best k that are informative and not duplicates
+	# rank ALL chunks, 
+	# keep the best k that are informative and not duplicates
+	# exluding with links and useless info
 	keep, seen = [], set()
 	for i in np.argsort(-scores):
 		c = chunks[i]
