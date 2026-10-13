@@ -47,7 +47,7 @@ flowchart LR
 ## Dataset
 
 ```bash
-bash download_auto_financials.sh /path/to/desired_directory
+bash download_auto_financials.sh /path/to/desired_dataset_directory
 ```
 
 ## Setup
@@ -65,13 +65,13 @@ Models are downloaded from Hugging Face on first use. If a model needs authentic
 Default (small embedding + LLM, suitable for a laptop with a small GPU):
 
 ```bash
-python finrag.py
+python finrag.py -d /path/to/desired_dataset_directory
 ```
 
 Larger models (HPC / powerful GPU):
 
 ```bash
-python finrag.py -emb "Qwen/Qwen3-Embedding-8B" -llm "Qwen/Qwen3.8-27B" -v
+python finrag.py -d /path/to/desired_dataset_directory -emb "Qwen/Qwen3-Embedding-8B" -llm "Qwen/Qwen3.8-27B" -v
 ```
 
 `Octen/Octen-Embedding-8B` can be used as the embedding model in the same way.
