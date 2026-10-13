@@ -482,6 +482,20 @@ def build_index(model: SentenceTransformer, chunks: List[Dict[str, Any]], batch_
 
 	return embeddings
 
+MIN_CHUNK_CHARS = 80
+_LINK_RE = re.compile(r"\[[^\]]*\]\([^)]*\)") # markdown links: for handing [text](url), remove rubish chunks
+
+QUERY_PROMPT = (
+	"Instruct: Given a web search query, retrieve relevant passages "
+  "that answer the query\nQuery:"
+)
+
+
+def _is_informative(chunk: Dict[str, Any]) -> bool:
+	body = _LINK_RE.sub(" ", chunk.get("raw_text") or "").strip()
+	return len(body) >= MIN_CHUNK_CHARS
+
+
 def retrieve(
 	model: SentenceTransformer,
 	embeddings: np.ndarray,
@@ -496,11 +510,6 @@ def retrieve(
 	# 	normalize_embeddings=True
 	# )[0].astype(np.float32)
 
-	QUERY_PROMPT = (
-		"Instruct: Given a web search query, retrieve relevant passages "
-		"that answer the query\nQuery:"
-	)
-
 	q = _encode_(
 		model, 
 		[query], 
@@ -511,12 +520,31 @@ def retrieve(
 	# q = _encode_(model=model, texts=[query], batch_size=1, show_progress_bar=False)
 
 	# scores = embeddings @ q  # cosine sim (both normalized)
-	scores = (embeddings @ q.T).squeeze(axis=1) # (3092, 1024) @ (1024, 1) -> (3092,)
+	scores = (embeddings @ q.T).squeeze(axis=1) # # cosine sim (both normalized) (3092, 1024) @ (1024, 1) -> (3092,)
 	k = min(k, len(scores))
 	
-	# sort only the k we keep
-	top = np.argpartition(-scores, k - 1)[:k]
-	top = top[np.argsort(-scores[top])]
+	# # naively sort only the k we keep
+	# chunks with rubish info
+	# top = np.argpartition(-scores, k - 1)[:k]
+	# top = top[np.argsort(-scores[top])]
+
+
+	# rank ALL chunks, then keep the best k that are informative and not duplicates
+	keep, seen = [], set()
+	for i in np.argsort(-scores):
+		c = chunks[i]
+		if not _is_informative(c):
+			continue
+		key = " ".join(c["raw_text"].split())
+		if key in seen:
+			continue
+		seen.add(key)
+		keep.append(int(i))
+		if len(keep) == k:
+			break
+	top = np.array(keep, dtype=int)
+
+
 
 	results = [
 		(chunks[i], float(scores[i])) 
