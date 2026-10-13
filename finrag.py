@@ -500,12 +500,18 @@ def retrieve(
 		"that answer the query\nQuery:"
 	)
 
-	q = _encode_(model, [query], prompt=QUERY_PROMPT, show_progress_bar=False)
+	q = _encode_(
+		model, 
+		[query], 
+		prompt=QUERY_PROMPT, 
+		show_progress_bar=False
+	)
 
 	# q = _encode_(model=model, texts=[query], batch_size=1, show_progress_bar=False)
 
 	# scores = embeddings @ q  # cosine sim (both normalized)
 	scores = (embeddings @ q.T).squeeze(axis=1) # (3092, 1024) @ (1024, 1) -> (3092,)
+	k = min(k, len(scores))
 	
 	# sort only the k we keep
 	top = np.argpartition(-scores, k - 1)[:k]
@@ -521,7 +527,6 @@ def retrieve(
 		print(type(embeddings), embeddings.shape)
 		print(type(scores), scores.shape)
 
-		k = min(k, len(scores))
 		print(k)
 		print(type(top), top.shape)
 		print(type(results), len(results))
@@ -776,7 +781,7 @@ def main():
 	parser.add_argument("--chunk_overlap", type=int, default=120)
 	parser.add_argument("--top_k", type=int, default=8)
 	parser.add_argument("--max_seq_len", type=int, default=8192, help="LLM context window (tokens)")
-	parser.add_argument("--max_new_tokens", type=int, default=512)
+	parser.add_argument("--max_new_tokens", type=int, default=1024)
 	parser.add_argument("--load_in_4bit", action="store_true")
 	parser.add_argument("--rebuild_index", action="store_true")
 	parser.add_argument("--verbose", '-v', action="store_true")
