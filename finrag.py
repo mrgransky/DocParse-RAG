@@ -39,7 +39,6 @@ cache_directory = {
 }
 
 console = rich.console.Console()
-DATA_DIR = "Data"
 
 # TEMPLATE__PROMPT = """\
 # You are a senior automotive financial analyst.
@@ -670,9 +669,8 @@ def debug_retrieval(retrieved):
 		)
 
 def get_document_embedding(
+	data_dir: str,
 	model_id: str,
-	# chunk_size: int,
-	# chunk_overlap: int,
 	batch_size: int,
 	rebuild_index: bool = False, 
 	verbose: bool = False
@@ -683,7 +681,7 @@ def get_document_embedding(
 
 	# shared chunk among all embedding models
 	# deterministic key for the DATA directory (independent of embedding model)
-	data_hash = hashlib.sha256(os.path.abspath(DATA_DIR).encode("utf-8")).hexdigest()[:10]
+	data_hash = hashlib.sha256(os.path.abspath(data_dir).encode("utf-8")).hexdigest()[:10]
 	shared_chunks_dir = os.path.join(user_cache_dir, "structural_chunks")
 	os.makedirs(shared_chunks_dir, exist_ok=True)
 	
@@ -692,7 +690,7 @@ def get_document_embedding(
 
 	# model specific cache key
 	cache_key = compute_cache_key(
-		data_dir=DATA_DIR,
+		data_dir=data_dir,
 		embed_model=model_id,
 		# chunk_size=chunk_size,
 		# chunk_overlap=chunk_overlap,
@@ -719,7 +717,7 @@ def get_document_embedding(
 			need_embedding_rebuild = True
 
 	chunks = get_chucked_docs(
-		data_dir=DATA_DIR,
+		data_dir=data_dir,
 		chunks_path=shared_chunks_path, # Passed to the shared cache location
 		verbose=verbose,
 	)
@@ -816,11 +814,12 @@ def get_llm(model_id, load_in_4bit: bool=False):
 
 def main():
 	parser = argparse.ArgumentParser(description="Financial RAG System (finRAG)")
+	parser.add_argument("--dataset_directory", "-d", type=str, required=True,)
 	parser.add_argument("--llm_model", "-llm", type=str, default="Qwen/Qwen3.5-0.8B")
 	parser.add_argument("--embedding_model", "-emb", type=str, default="Qwen/Qwen3-Embedding-0.6B",help="context embedder")
 	parser.add_argument("--batch_size", '-bs', type=int, default=8, help="batch size for embeddings")
-	# parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
-	# parser.add_argument("--chunk_overlap", type=int, default=120)
+	parser.add_argument("--chunk_size", type=int, default=800, help="Must be < embedder max_seq_length * ~4 chars/token")
+	parser.add_argument("--chunk_overlap", type=int, default=120)
 	parser.add_argument("--top_k", '-k', type=int, default=8)
 	parser.add_argument("--max_seq_len", type=int, default=8192, help="LLM context window (tokens)")
 	parser.add_argument("--max_new_tokens", type=int, default=1024)
@@ -830,10 +829,9 @@ def main():
 	args = parser.parse_args()
 
 	emb_model, chunks, embeddings = get_document_embedding(
+		data_dir=args.dataset_directory,
 		model_id=args.embedding_model,
 		batch_size=args.batch_size,
-		# chunk_size=args.chunk_size,
-		# chunk_overlap=args.chunk_overlap,
 		rebuild_index=args.rebuild_index,
 		verbose=args.verbose,
 	)
