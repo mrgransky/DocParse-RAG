@@ -6,6 +6,7 @@ import hashlib
 import json
 import pickle
 import re
+import packaging
 import pathlib
 import rich
 import rich.panel
