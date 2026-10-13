@@ -83,6 +83,12 @@ What about BMW?
 
 What was BMW's profit before tax in 2021?
 
+What were BMW’s profit figures for 2020 and 2023?
+
+What was BMW’s total revenue in 2023?
+
+What was BMW’s profit before tax in 2021?
+
 ## Required Packages:
 
 $ conda create -n py312 python=3.12 -y

@@ -82,9 +82,11 @@ EVIDENCE AND ACCURACY RULES
 	 relationship.
 10. Do not perform arithmetic unless the user explicitly requests a calculation.
 		If calculations are requested, show the formula and identify the input figures.
-11. If the context provides no evidence for ANY part of the question, respond
-		with exactly: DATA_MISSING
-		
+11. If the context contains no evidence relevant to the question, respond with
+		exactly: DATA_MISSING. If only some parts of the question are supported, answer
+		the supported parts and state clearly which parts are unavailable; do not
+		respond with DATA_MISSING in that case.
+
 CONTEXT:
 {context}
 """
