@@ -90,6 +90,12 @@ $ conda create -n py312 python=3.12 -y
 
 $ pip install -r requirements.txt
 
+
+## Obtain Data:
+
+$ bash download_auto_financials.sh /path/to/customized_directory
+
+
 ## how to run (default embedding + LLM models) [laptop with small GPU]:
 
 $ python finrag.py 
