@@ -249,7 +249,8 @@ def get_chucked_docs(
 		try:
 			with open(pickle_path, "rb") as f:
 				chunks = pickle.load(f)
-			print(f"[DONE] Loaded {len(chunks):,} cached structural chunks.")
+			if verbose:
+				print(f"[LOADED] {len(chunks):,} cached structural chunks.")
 			return chunks
 		except Exception as e:
 			print(f"<!> Failed to load cached pickle ({e}). Re-processing PDFs...")
@@ -785,7 +786,7 @@ def get_llm(model_id, load_in_4bit: bool=False):
 		"dtype": dtype,
 	}
 
-	console.print(f"[bold cyan][LOADING] {model_id}[/bold cyan]")
+	# console.print(f"[bold cyan][LOADING] {model_id}[/bold cyan]")
 	tokenizer = tfs.AutoTokenizer.from_pretrained(model_id, **llm_model_kw,)
 
 	# safety net: never want drop the tail (question + Answer: cue).
@@ -836,7 +837,8 @@ def main():
 		rebuild_index=args.rebuild_index,
 		verbose=args.verbose,
 	)
-	print(f"emb_model.max_seq_length: {emb_model.max_seq_length}")
+	if args.verbose:
+		print(f"emb_model.max_seq_length: {emb_model.max_seq_length}")
 
 	tokenizer, llm = get_llm(
 		model_id=args.llm_model,

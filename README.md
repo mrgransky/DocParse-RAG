@@ -19,6 +19,7 @@ The pipeline will be able to answer questions about the financial performance of
 from the instruction:
 
 What was BMW's total revenue in 2023?
+BMW’s total revenue 2021
 
 How much revenue did Tesla generate in 2023?
 
@@ -51,7 +52,7 @@ Tesla's stock price on December 31, 2023
 
 Compare the 2021 revenue of BMW and Tesla.
 
-Which company had a higher net income in 2022: Tesla or Ford?
+Company gained higher net income in 2022: Tesla or Ford?
 
 
 Summarize the revenue growth of Tesla from 2021 to 2023.
@@ -71,7 +72,7 @@ What were Tesla's exact revenues from the 'Energy generation and storage' segmen
 
 What is the target EBIT margin for BMW's Automotive segment?
 
-Break down the $12.17 billion of 'Special Items' expenses Ford recorded in 2022.
+Break down the $12.17 billion of special items expenses Ford recorded in 2022.
 
 Memory (follow-up questions)
 
