@@ -645,16 +645,25 @@ def debug_retrieval(retrieved):
 		ryear = doc.get("report_year") or "?"
 		doc_type = doc.get("document_type") or "?"
 		doc_page = doc.get("page") or "?"
+
+		raw_len = len(doc.get("raw_text") or "")
+		inf_len = _informative_len(doc)
+		ok = inf_len >= MIN_CHUNK_CHARS
+		len_tag = (
+			f"[green]OK[/green]" if ok else f"[red]BELOW MIN {MIN_CHUNK_CHARS}[/red]"
+		)
+
 		ranked_chunk_msg = (
 			f"\n[bold cyan][Rank {rank}] score={score:.4f} | "
 			f"{company} | {ryear} | {doc_type} | "
 			f"{doc['source']} | page {doc_page}[/bold cyan]"
+			f" | chars: raw={raw_len}, informative={inf_len} {len_tag}"
 		)
 		console.print(ranked_chunk_msg)
 		console.print(
 			rich.panel.Panel(
 				doc["text"],
-				title="Chunk preview",
+				title=f"Chunk preview ({raw_len} chars)",
 				# expand=False
 			)
 		)
