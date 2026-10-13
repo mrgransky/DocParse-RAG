@@ -16,6 +16,9 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import transformers as tfs
 
+# how to run [Roihu]:
+# $ /scratch/project_2004072/datasets/automotive_finance
+
 try:
 	from sentence_transformers.sentence_transformer.modules import Normalize
 except ImportError:
