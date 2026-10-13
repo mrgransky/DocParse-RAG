@@ -16,79 +16,73 @@ The pipeline will be able to answer questions about the financial performance of
 
 ## Test Cases for RAG Pipeline
 
-from the instruction:
+- What was BMW's total revenue in 2023?
 
-What was BMW's total revenue in 2023?
-BMW’s total revenue 2021
+- BMW’s total revenue 2021
 
-How much revenue did Tesla generate in 2023?
+- How much revenue did Tesla generate in 2023?
 
-Ford's revenue 2020
+- Ford's revenue 2020
 
-Can you provide the revenue ﬁgures for BMW in 2017?
+- Can you provide the revenue ﬁgures for BMW in 2017?
 
-What key economic factors inﬂuenced Ford's performance in 2021?
+- What key economic factors inﬂuenced Ford's performance in 2021?
 
-Which Tesla product is currently in the development stage?
+- Which Tesla product is currently in the development stage?
 
-What were BMW's proﬁt ﬁgures for 2020 and 2023?
+- What were BMW's proﬁt ﬁgures for 2020 and 2023?
 
-Between Tesla and Ford, which company achieved higher proﬁts in 2022?
+- Between Tesla and Ford, which company achieved higher proﬁts in 2022?
 
-What were Tesla's proﬁt numbers for 2022 and 2023?
+- What were Tesla's proﬁt numbers for 2022 and 2023?
 
-Which company recorded better proﬁtability in 2022 overall?
+- Which company recorded better proﬁtability in 2022 overall?
 
-Provide a summary of revenue ﬁgures for Tesla, BMW, and Ford over the past three years.
+- Provide a summary of revenue ﬁgures for Tesla, BMW, and Ford over the past three years.
 
-What were the growth trends for BMW's ﬁnancial performance from 2020 to 2023?
+- What were the growth trends for BMW's ﬁnancial performance from 2020 to 2023?
 
+- How many vehicles did Rivian deliver in 2022?
 
-personal discovery:
+- Tesla's stock price on December 31, 2023
 
-How many vehicles did Rivian deliver in 2022?
+- Compare the 2021 revenue of BMW and Tesla.
 
-Tesla's stock price on December 31, 2023
+- Company gained higher net income in 2022: Tesla or Ford?
 
-Compare the 2021 revenue of BMW and Tesla.
+- Summarize the revenue growth of Tesla from 2021 to 2023.
 
-Company gained higher net income in 2022: Tesla or Ford?
+- Why did Ford report a net loss in 2022 despite strong automotive sales
 
+- What caused the massive drop in Tesla's effective tax rate in 2023?
 
-Summarize the revenue growth of Tesla from 2021 to 2023.
+* Distractor / news.pdf file:
 
-Why did Ford report a net loss in 2022 despite strong automotive sales
+- How did the central bank's 0.5% interest rate hike affect Ford's F-150 Lightning sales?
 
+- Did the new climate bill passed by Congress impact BMW's NEUE KLASSE platform?
 
-What caused the massive drop in Tesla's effective tax rate in 2023?
+- What were Tesla's exact revenues from the 'Energy generation and storage' segment in 2021, 2022, and 2023?
 
-Distractor / news.pdf file:
+- What is the target EBIT margin for BMW's Automotive segment?
 
-How did the central bank's 0.5% interest rate hike affect Ford's F-150 Lightning sales?
+- Break down the $12.17 billion of special items expenses Ford recorded in 2022.
 
-Did the new climate bill passed by Congress impact BMW's NEUE KLASSE platform?
+* **Memory (follow-up questions)**
 
-What were Tesla's exact revenues from the 'Energy generation and storage' segment in 2021, 2022, and 2023?
+- What raw materials is Ford dependent on for EV batteries?
 
-What is the target EBIT margin for BMW's Automotive segment?
+- Does Tesla face the same supply chain risks for those materials?
 
-Break down the $12.17 billion of special items expenses Ford recorded in 2022.
+- What about BMW?
 
-Memory (follow-up questions)
+- What was BMW's profit before tax in 2021?
 
-What raw materials is Ford dependent on for EV batteries?
+- What were BMW’s profit figures for 2020 and 2023?
 
-Does Tesla face the same supply chain risks for those materials?
+- What was BMW’s total revenue in 2023?
 
-What about BMW?
-
-What was BMW's profit before tax in 2021?
-
-What were BMW’s profit figures for 2020 and 2023?
-
-What was BMW’s total revenue in 2023?
-
-What was BMW’s profit before tax in 2021?
+- What was BMW’s profit before tax in 2021?
 
 ## Required Packages:
 
