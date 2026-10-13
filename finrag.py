@@ -797,7 +797,6 @@ def main():
 	)
 	print(f"emb_model.max_seq_length: {emb_model.max_seq_length}")
 
-
 	tokenizer, llm = get_llm(
 		model_id=args.llm_model,
 		load_in_4bit=args.load_in_4bit

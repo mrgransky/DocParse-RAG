@@ -1,16 +1,3 @@
-"""
-Minimal automatic evaluation for finRAG.
-
-Run from the project folder (so DATA_DIR="Data" resolves):
-		python eval_finrag.py --retrieval_only        # fast: retrieval check only, no LLM
-		python eval_finrag.py                         # full: retrieval + answer + refusal + citations
-
-Metrics
-	retrieval_hit : every required (company, year) appears in the top-k retrieved chunks
-	numeric_ok    : the expected figure(s) appear in the answer (commas/currency stripped)
-	refusal_ok    : DATA_MISSING returned iff the case is a distractor (expect_missing)
-	citation_ok   : every [file.pdf, p. N] cited in the answer exists in the context the LLM saw
-"""
 import argparse
 import json
 import re
@@ -22,14 +9,6 @@ import rich.table
 
 import finrag as F
 
-# ----------------------------------------------------------------------------
-# Test set. EDIT THESE: the expected figures below were written from memory of
-# the public reports (USD/EUR millions) -- spot-check them against your PDFs.
-#   need           : list of (company, [acceptable report years]) that retrieval must surface
-#   expect         : list of groups; each group = acceptable spellings of ONE figure,
-#                    ALL groups must appear in the answer. None = skip numeric check.
-#   expect_missing : True for distractors -> the bot must answer DATA_MISSING
-# ----------------------------------------------------------------------------
 CASES = [
 	{
 		"id": "bmw_pbt_2020_partial", "type": "partial-answer",
@@ -96,7 +75,6 @@ CITE_RE = re.compile(r"\[([^\[\],]+?\.pdf),\s*p\.?\s*(\d+)\]", re.IGNORECASE)
 def norm(s: str) -> str:
 	return re.sub(r"[,\s$€]", "", s.lower())
 
-
 def retrieval_hit(retrieved, need) -> bool:
 	for company, years in need:
 		if not any(
@@ -105,7 +83,6 @@ def retrieval_hit(retrieved, need) -> bool:
 		):
 			return False
 	return True
-
 
 def numeric_ok(answer: str, expect) -> bool:
 	a = norm(answer)
@@ -125,7 +102,6 @@ def citation_ok(answer: str, kept) -> "bool | None":
 		for p in (d.get("pages") or [d.get("page")])
 	}
 	return all((f.strip().lower(), int(p)) in seen for f, p in cites)
-
 
 def generate(tokenizer, llm, query, retrieved, max_seq_len, max_new_tokens):
 	# same budgeting + prompt construction as finRAG.main(), without chat history
@@ -159,15 +135,12 @@ def generate(tokenizer, llm, query, retrieved, max_seq_len, max_new_tokens):
 	answer = tokenizer.decode(out[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
 	return F.clean_response(answer), kept
 
-
 def mark(v):
 	return "–" if v is None else ("[green]✓[/green]" if v else "[red]✗[/red]")
-
 
 def rate(vals):
 	vals = [v for v in vals if v is not None]
 	return (sum(vals) / len(vals), len(vals)) if vals else (None, 0)
-
 
 def main():
 	ap = argparse.ArgumentParser(description="finRAG evaluation")
