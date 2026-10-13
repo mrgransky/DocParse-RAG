@@ -9,7 +9,7 @@ __pycache__/
 *.json
 *.png 
 
-eval_finrag.py
+eval*.py
 
 # C extensions
 *.so
