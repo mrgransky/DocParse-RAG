@@ -782,6 +782,8 @@ def main():
 		rebuild_index=args.rebuild_index,
 		verbose=args.verbose,
 	)
+	print(f"emb_model.max_seq_length: {emb_model.max_seq_length}")
+
 
 	tokenizer, llm = get_llm(
 		model_id=args.llm_model,
