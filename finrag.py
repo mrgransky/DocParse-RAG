@@ -105,7 +105,7 @@ from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.transforms.chunker import HierarchicalChunker
 
 pipeline_options = PdfPipelineOptions()
-pipeline_options.do_ocr = False              # Vector PDF: native text extraction
+pipeline_options.do_ocr = False # Vector PDF: native text extraction
 pipeline_options.do_table_structure = True   # Keep financial tables intact
 pipeline_options.table_structure_options.do_cell_matching = True
 
@@ -228,113 +228,6 @@ def save_chunks_pickle(
 
 	if verbose:
 		print(f"[PICKLE] {len(chunks):,} chunks -> {output_path}")
-
-def get_chucked_docs_old(
-	data_dir: str,
-	chunks_path: str,
-	verbose: bool = False,
-) -> List[Dict[str, Any]]:
-	if verbose:
-		print(f"\n[CHUNKING] {data_dir} via HierarchicalChunker...")
-	
-	chunks = []
-	for root, _, files in os.walk(data_dir):
-		for filename in sorted(files):
-			if not filename.lower().endswith(".pdf"):
-				continue
-			path = os.path.join(root, filename)
-			meta = get_file_metadata(path)
-			try:
-				result = converter.convert(path)
-				doc = result.document
-			except Exception as e:
-				print(f"<!> Failed to convert {path}: {e}")
-				continue
-			for chunk in chunker.chunk(doc):
-				# Extract page provenance
-				page_numbers = sorted(
-					{
-						prov.page_no
-						for item in chunk.meta.doc_items
-						for prov in getattr(item, "prov", [])
-						if hasattr(prov, "page_no")
-					}
-				)
-				
-				# Extract heading hierarchy
-				headings = getattr(chunk.meta, "headings", []) or []
-				
-				# Enrich chunk text with heading context
-				header_prefix = (
-					f"[{' > '.join(headings)}]\n"
-					if headings
-					else ""
-				)
-				enriched_text = header_prefix + chunk.text
-				
-				# Create deterministic chunk ID
-				identity = {
-					"source": os.path.normpath(os.path.abspath(path)),
-					"pages": page_numbers,
-					"headings": headings,
-					"raw_text": chunk.text,
-				}
-				identity_json = json.dumps(
-					identity,
-					ensure_ascii=False,
-					sort_keys=True,
-				)
-				chunk_id = hashlib.sha256(identity_json.encode("utf-8")).hexdigest()[:16]
-				
-				# Construct chunk record
-				chunk_record = {
-					"chunk_id": chunk_id,
-					"text": enriched_text,
-					"raw_text": chunk.text,
-					"source": path,
-					"page": page_numbers[0] if page_numbers else None,
-					"pages": page_numbers,
-					"headings": headings,
-					"company": meta.get("company"),
-					"report_year": meta.get("report_year"),
-					"document_type": meta.get("document_type"),
-				}
-				chunks.append(chunk_record)
-
-				if verbose:
-					print(
-						f"Chunk_ID: {chunk_id} | "
-						f"Pages: {page_numbers} | "
-						f"Headings: {headings} | "
-						f"Length: {len(chunk.text)} chars"
-					)
-
-	print(f"[DONE] Created {len(chunks):,} structural chunks.")
-
-	# Save both pkl and jsonl files:
-	base_path = os.path.splitext(chunks_path)[0]
-	jsonl_path = base_path + ".jsonl"
-	pickle_path = base_path + ".pkl"
-	chuncks_summary_path = base_path + "_summary.json"
-
-	save_chunks_jsonl(
-		chunks=chunks,
-		output_path=jsonl_path,
-		verbose=verbose,
-	)
-
-	save_chunks_pickle(
-		chunks=chunks,
-		output_path=pickle_path,
-		verbose=verbose,
-	)
-
-	save_chunks_summary(
-		chunks=chunks,
-		output_path=chuncks_summary_path,
-	)
-
-	return chunks
 
 def get_chucked_docs(
 	data_dir: str,
@@ -810,8 +703,6 @@ def get_document_embedding(
 			}
 			json.dump(cache_data, f, indent=2)
 	else:
-		if verbose:
-			print(f"[CACHED] Embedding index found for: {model_id}")
 
 		emb_model = _load(
 			model_id=model_id,
@@ -820,6 +711,9 @@ def get_document_embedding(
 			cache_folder=user_cache_dir,
 			token=os.getenv("HUGGINGFACE_TOKEN"),
 		)
+		if verbose:
+			print(f"[CACHED] Embedding index found for: {model_id}")
+			print(f"emb_model.max_seq_length: {emb_model.max_seq_length}")
 
 		embeddings = np.load(emb_path)
 
