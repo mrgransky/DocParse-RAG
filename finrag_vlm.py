@@ -64,8 +64,9 @@
 # print(similarities)
 
 
+# python finrag_vlm.py -d /scratch/project_2004072/datasets/automotive_finance -vlm "Qwen/Qwen3.8-27B" -emb "Qwen/Qwen3-VL-Embedding-8B" --dpi 150 -bs 16 -v
 
-#!/usr/bin/env python3
+
 """
 finrag_vlm.py — ReportVision-RAG
 Visual RAG for financial reports:
