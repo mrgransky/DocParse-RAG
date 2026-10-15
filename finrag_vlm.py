@@ -631,13 +631,17 @@ def show_retrieval(retrieved, pages, n_sent: Optional[int] = None, verbose: bool
 							fmt(r["rerank_score"]), r["best_unit"]["kind"] + (f" {r['best_unit']['bbox']}" if r["best_unit"]["bbox"] else ""),
 							"✓" if (n_sent is not None and i <= n_sent) else "")
 	console.print(t)
+
 	if verbose:
 		for i, r in enumerate(retrieved, 1):
 			p = pages[r["page_idx"]]
-			console.print(rich.panel.Panel(
-				(p["text"][:600] or "[no text layer]"),
-				title=f"[{i}] {p['filename']} p.{p['page']} — {p['image_path']}",
-			))
+			console.print(
+					rich.panel.Panel(
+					# (p["text"][:600] or "[no text layer]"),
+					(p["text"] or "[no text layer]"),
+					title=f"[{i}] {p['filename']} p.{p['page']} — {p['image_path']} len={len(p['text'])}",
+				)
+			)
 
 # ---------------------------------------------------------------------------
 # 7) VLM
@@ -774,9 +778,6 @@ def evaluate(args, embedder, embeddings, units, pages, bm25, reranker, processor
 	atomic_write_json({"config": vars(args), "summary": summary}, base + "_summary.json")
 	print(f"[EVAL] per-question -> {base}.jsonl | summary -> {base}_summary.json")
 
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
 def main():
 	ap = argparse.ArgumentParser(description="ReportVision-RAG: visual RAG over financial PDFs")
 	ap.add_argument("--dataset_directory", "-d", type=str, required=True)
@@ -858,9 +859,13 @@ def main():
 		history.append((query, answer))
 		console.print("\n[bold green]AI:[/bold green]")
 		console.print(answer)
+
 		show_retrieval(retrieved, pages, n_sent=n_sent, verbose=args.verbose)
-		console.print(f"[bold cyan]{n_sent}/{len(retrieved)} pages sent to VLM "
-									f"(prompt {n_tok} tok, budget {args.max_seq_len - args.max_new_tokens})[/bold cyan]")
+
+		console.print(
+			f"[bold cyan]{n_sent}/{len(retrieved)} pages sent to VLM "
+			f"(prompt {n_tok} tok, budget {args.max_seq_len - args.max_new_tokens})[/bold cyan]"
+		)
 
 if __name__ == "__main__":
 	main()
