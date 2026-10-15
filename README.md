@@ -118,7 +118,9 @@ The chat keeps the last 5 turns, so follow-ups work. Questions used to exercise 
 - Break down the $12.17 billion of special items expenses Ford recorded in 2022.
 
 **Follow-ups (memory)**
-- What raw materials is Ford dependent on for EV batteries? → Does Tesla face the same supply chain risks for those materials? → What about BMW?
+- What raw materials is Ford dependent on for EV batteries?  
+- Does Tesla face the same supply chain risks for those materials? 
+- What about BMW?
 
 **Should be refused (`DATA_MISSING`)**
 - How many vehicles did Rivian deliver in 2022?

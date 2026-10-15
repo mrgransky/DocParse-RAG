@@ -8,25 +8,6 @@
 # 	"ubuntu": "/media/volume/models",
 # }
 
-
-# def pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 200):
-# 	print(f"Converting PDF to images (DPI={dpi})...")
-# 	images = convert_from_path(pdf_path, dpi=dpi)
-# 	image_paths = []
-# 	for i, img in enumerate(images):
-# 			img_path = os.path.join(output_dir, f"page_{i+1:04d}.jpg")
-# 			img.save(img_path, "JPEG", quality=95)
-# 			image_paths.append(img_path)
-# 	print(f"Saved {len(image_paths)} page images.")
-# 	return image_paths
-
-# dataset_path = "/home/farid/datasets/automotive_finance"
-# brands = ["BMW", "Ford", "Tesla"]
-
-# pdf_files = glob.glob(os.path.join(dataset_path, brands[-1], "*.pdf"))
-
-# print(pdf_files)
-
 # # Load the model
 # model = SentenceTransformer("Qwen/Qwen3-VL-Embedding-2B", cache_folder=cache_directory.get(os.getenv('USER')))
 
@@ -64,7 +45,7 @@
 # print(similarities)
 
 
-# python finrag_vlm.py -d /scratch/project_2004072/datasets/automotive_finance -vlm "Qwen/Qwen3.8-27B" -emb "Qwen/Qwen3-VL-Embedding-8B" --dpi 150 -bs 16 -v
+# python finrag_vlm.py -d /scratch/project_2004072/datasets/automotive_finance -vlm "Qwen/Qwen3.8-27B" -emb "Qwen/Qwen3-VL-Embedding-8B" --dpi 200 -bs 16 -v
 
 
 """
