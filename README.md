@@ -98,6 +98,7 @@ The chat keeps the last 5 turns, so follow-ups work. Questions used to exercise 
 - What was BMW's total revenue in 2023?
 - How much revenue did Tesla generate in 2023?
 - Ford's revenue 2020
+- How about BMW's total revenue in 2020? if available, was it higher than Ford's?
 - What was BMW's profit before tax in 2021?
 - Which Tesla product is currently in the development stage?
 
