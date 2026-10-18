@@ -1,4 +1,19 @@
-# finRAG: Financial RAG over Automotive Annual Reports
+<div align="center">
+
+# 🔍 DocParse-RAG
+
+### Text-based RAG for Complex PDFs
+
+**Read and Parse the text in PDFs.** Answer questions about the content of the PDFs, using the structure of the PDF as a knowledge base.
+
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![Transformers](https://img.shields.io/badge/%F0%9F%A4%97%20Transformers-4.57%2B-yellow)](https://github.com/huggingface/transformers)
+[![Sentence--Transformers](https://img.shields.io/badge/Sentence--Transformers-5.4%2B%20%5Bimage%5D-orange)](https://github.com/UKPLab/sentence-transformers)
+[![Models](https://img.shields.io/badge/Models-Qwen%20VL-green)](https://huggingface.co/Qwen)
+
+</div>
+
+---
 
 A retrieval-augmented question-answering assistant for annual reports of car manufacturers (BMW, Ford, Tesla). Ask a question in plain English; finRAG retrieves the relevant passages from the reports, answers **only from that evidence**, and cites the source file and page, or says `DATA_MISSING` when the documents do not contain the answer.
 
