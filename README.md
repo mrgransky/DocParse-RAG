@@ -15,7 +15,9 @@
 
 ---
 
-A retrieval-augmented question-answering assistant for annual reports of car manufacturers (BMW, Ford, Tesla). Ask a question in plain English; finRAG retrieves the relevant passages from the reports, answers **only from that evidence**, and cites the source file and page, or says `DATA_MISSING` when the documents do not contain the answer.
+A retrieval-augmented question-answering chatbot assistant for annual reports of car manufacturers (BMW, Ford, Tesla). 
+
+Ask a question in plain English; it retrieves the relevant passages from the reports, answers **only from that evidence**, and cites the source file and page, or says `DATA_MISSING` when the documents do not contain the answer.
 
 It runs fully locally on open models (Hugging Face `transformers` + `sentence-transformers`); no external API is called.
 
@@ -73,20 +75,20 @@ conda activate py312
 pip install -r requirements.txt
 ```
 
-Models are downloaded from Hugging Face on first use. If a model needs authentication, set `HUGGINGFACE_TOKEN` in your environment. Model and index caches go to the directory configured in `cache_directory` at the top of `finrag.py`, or to the current directory by default.
+Models are downloaded from Hugging Face on first use. If a model needs authentication, set `HUGGINGFACE_TOKEN` in your environment. Model and index caches go to the directory configured in `cache_directory` at the top of `run.py`, or to the current directory by default.
 
 ## Run
 
 Default (small embedding + LLM, suitable for a laptop with a small GPU):
 
 ```bash
-python finrag.py -d /path/to/desired_dataset_directory
+python run.py -d /path/to/desired_dataset_directory
 ```
 
 Larger models (HPC / powerful GPU):
 
 ```bash
-python finrag.py -d /path/to/desired_dataset_directory -emb "Qwen/Qwen3-Embedding-8B" -llm "Qwen/Qwen3.8-27B" -v
+python run.py -d /path/to/desired_dataset_directory -emb "Qwen/Qwen3-Embedding-8B" -llm "Qwen/Qwen3.8-27B" -v
 ```
 
 `Octen/Octen-Embedding-8B` can be used as the embedding model in the same way.
