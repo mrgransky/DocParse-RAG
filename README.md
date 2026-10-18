@@ -4,7 +4,7 @@
 
 ### Text-based RAG for Complex PDFs
 
-**Read and Parse the text in PDFs.** Answer questions about the content of the PDFs, using the structure of the PDF as a knowledge base.
+**Read and Parse PDFs.** Answer questions about the content of the PDFs, using the structure of the PDF as a knowledge base.
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![Transformers](https://img.shields.io/badge/%F0%9F%A4%97%20Transformers-4.57%2B-yellow)](https://github.com/huggingface/transformers)
