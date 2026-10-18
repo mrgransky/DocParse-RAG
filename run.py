@@ -17,7 +17,7 @@ import numpy as np
 import transformers as tfs
 
 # how to run [Roihu]:
-# $ /scratch/project_2004072/datasets/automotive_finance
+# python run.py -df /scratch/project_2004072/datasets/automotive_finance
 
 try:
 	from sentence_transformers.sentence_transformer.modules import Normalize
